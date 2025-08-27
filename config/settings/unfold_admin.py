@@ -89,6 +89,18 @@ UNFOLD = {
                     },
                 ],
             },
+            {
+                "title": "Settings",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "OpenAI Settings",
+                        "icon": "smart_toy",
+                        "link": "/admin/settings/openaisetting/",
+                    },
+                ],
+            },
         ],
     },
 }
