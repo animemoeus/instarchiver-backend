@@ -1,7 +1,8 @@
 from factory import Faker
 from factory.django import DjangoModelFactory
 
-from settings.models import CoreAPISetting, OpenAISetting
+from settings.models import CoreAPISetting
+from settings.models import OpenAISetting
 
 
 class OpenAISettingFactory(DjangoModelFactory):

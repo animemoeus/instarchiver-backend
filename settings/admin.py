@@ -2,7 +2,8 @@ from django.contrib import admin
 from solo.admin import SingletonModelAdmin
 from unfold.admin import ModelAdmin
 
-from .models import CoreAPISetting, OpenAISetting
+from .models import CoreAPISetting
+from .models import OpenAISetting
 
 
 @admin.register(OpenAISetting)
