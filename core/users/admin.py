@@ -1,4 +1,5 @@
 from allauth.account.decorators import secure_admin_login
+from allauth.account.models import EmailAddress
 from django.conf import settings
 from django.contrib import admin
 from django.contrib.auth import admin as auth_admin
@@ -31,6 +32,7 @@ if settings.DJANGO_ADMIN_FORCE_ALLAUTH:
     admin.site.login = secure_admin_login(admin.site.login)  # type: ignore[method-assign]
 
 admin.site.unregister(Group)
+admin.site.unregister(EmailAddress)
 
 
 @admin.register(User)
