@@ -6,6 +6,8 @@ from pathlib import Path
 
 import environ
 
+from .unfold_admin import UNFOLD  # noqa: F401
+
 BASE_DIR = Path(__file__).resolve(strict=True).parent.parent.parent
 # core/
 APPS_DIR = BASE_DIR / "core"
@@ -349,5 +351,8 @@ SPECTACULAR_SETTINGS = {
     "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",
 }
+# Django Unfold configuration is imported from unfold_admin.py
+# ------------------------------------------------------------------------------
+
 # Your stuff...
 # ------------------------------------------------------------------------------
