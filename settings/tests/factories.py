@@ -20,4 +20,3 @@ class OpenAISettingFactory(DjangoModelFactory):
 
     class Meta:
         model = OpenAISetting
-        django_get_or_create = ["id"]

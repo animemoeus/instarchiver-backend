@@ -17,10 +17,14 @@ class OpenAISettingModelTest(TestCase):
 
     def test_singleton_behavior(self):
         """Test that OpenAI setting maintains singleton behavior."""
-        setting1 = OpenAISettingFactory()
-        setting2 = OpenAISettingFactory()
+        # Clear any existing instances first
+        OpenAISetting.objects.all().delete()
 
-        # Both should reference the same instance due to get_or_create
+        setting1 = OpenAISettingFactory()
+        # Since it's a singleton model, getting another instance should return the same one  # noqa: E501
+        setting2 = OpenAISetting.get_solo()
+
+        # Both should reference the same instance
         assert setting1.id == setting2.id
         assert OpenAISetting.objects.count() == 1
 
