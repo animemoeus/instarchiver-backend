@@ -6,11 +6,13 @@ class OpenAISetting(SingletonModel):
     api_key = models.CharField(
         max_length=255,
         default="",
+        blank=True,
         help_text="OpenAI API Key",
     )
     model_name = models.CharField(
         max_length=100,
         default="",
+        blank=True,
         help_text="OpenAI Model Name",
     )
 
@@ -28,11 +30,13 @@ class CoreAPISetting(SingletonModel):
     api_url = models.URLField(
         max_length=255,
         default="",
+        blank=True,
         help_text="Core API URL",
     )
     api_token = models.CharField(
         max_length=255,
         default="",
+        blank=True,
         help_text="Core API Token",
     )
 
