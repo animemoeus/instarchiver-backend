@@ -99,6 +99,11 @@ UNFOLD = {
                         "icon": "smart_toy",
                         "link": "/admin/settings/openaisetting/",
                     },
+                    {
+                        "title": "Core API Settings",
+                        "icon": "api",
+                        "link": "/admin/settings/coreapisetting/",
+                    },
                 ],
             },
         ],
