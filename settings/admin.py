@@ -1,6 +1,13 @@
 from django.contrib import admin
+from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
+from django.utils.translation import gettext_lazy as _
 from solo.admin import SingletonModelAdmin
 from unfold.admin import ModelAdmin
+from unfold.decorators import action
+
+from core.utils import openai
 
 from .models import CoreAPISetting
 from .models import OpenAISetting
@@ -24,6 +31,26 @@ class OpenAISettingAdmin(SingletonModelAdmin, ModelAdmin):
         ),
     )
     readonly_fields = ("created_at", "updated_at")
+
+    actions_detail = ["check_connection"]
+
+    @action(
+        description=_("Check Connection"),
+        url_path="check-connection",
+    )
+    def check_connection(self, request: HttpRequest, object_id: int):
+        if openai.check_connection():
+            self.message_user(request, _("OpenAI API connection is working."))
+        else:
+            self.message_user(
+                request,
+                _("Failed to connect to OpenAI API."),
+                level="error",
+            )
+
+        return redirect(
+            reverse_lazy("admin:settings_openaisetting_change", args=(object_id,)),
+        )
 
 
 @admin.register(CoreAPISetting)
