@@ -5,12 +5,12 @@ from solo.models import SingletonModel
 class OpenAISetting(SingletonModel):
     api_key = models.CharField(
         max_length=255,
-        blank=True,
+        default="",
         help_text="OpenAI API Key",
     )
     model_name = models.CharField(
         max_length=100,
-        blank=True,
+        default="",
         help_text="OpenAI Model Name",
     )
 
