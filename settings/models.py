@@ -38,3 +38,9 @@ class CoreAPISetting(SingletonModel):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Core API Settings"
+
+    class Meta:
+        verbose_name = "Core API Setting"

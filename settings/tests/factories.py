@@ -1,7 +1,7 @@
 from factory import Faker
 from factory.django import DjangoModelFactory
 
-from settings.models import OpenAISetting
+from settings.models import CoreAPISetting, OpenAISetting
 
 
 class OpenAISettingFactory(DjangoModelFactory):
@@ -20,3 +20,18 @@ class OpenAISettingFactory(DjangoModelFactory):
 
     class Meta:
         model = OpenAISetting
+
+
+class CoreAPISettingFactory(DjangoModelFactory):
+    api_url = Faker("url")
+    api_token = Faker(
+        "password",
+        length=64,
+        special_chars=False,
+        digits=True,
+        upper_case=True,
+        lower_case=True,
+    )
+
+    class Meta:
+        model = CoreAPISetting
