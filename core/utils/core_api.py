@@ -101,7 +101,8 @@ def make_request(
 def check_connection() -> bool:
     """Check if Core API connection is working."""
     try:
-        make_request("GET", "/health", timeout=10)
+        response = make_request("GET", "/api/v1/health/check", timeout=10)
+        response.raise_for_status()
     except Exception as e:
         logger.exception("Failed to connect to Core API: %s", e)  # noqa: TRY401
         return False
