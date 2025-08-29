@@ -3,11 +3,16 @@ from rest_framework import status as drf_status
 
 
 class APIRequestLog(models.Model):
+    STATUS_PENDING = "pending"
+    STATUS_SUCCESS = "success"
+    STATUS_ERROR = "error"
+    STATUS_TIMEOUT = "timeout"
+
     STATUS_CHOICES = [
-        ("pending", "Pending"),
-        ("success", "Success"),
-        ("error", "Error"),
-        ("timeout", "Timeout"),
+        (STATUS_PENDING, "Pending"),
+        (STATUS_SUCCESS, "Success"),
+        (STATUS_ERROR, "Error"),
+        (STATUS_TIMEOUT, "Timeout"),
     ]
 
     method = models.CharField(max_length=10)
@@ -20,7 +25,11 @@ class APIRequestLog(models.Model):
     response_headers = models.JSONField(default=dict, blank=True)
     response_body = models.JSONField(default=dict, blank=True)
 
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
     duration_ms = models.IntegerField(null=True, blank=True)
     error_message = models.TextField(blank=True)
 
@@ -44,7 +53,7 @@ class APIRequestLog(models.Model):
     @property
     def is_successful(self):
         return (
-            self.status == "success"
+            self.status == self.STATUS_SUCCESS
             and drf_status.HTTP_200_OK
             <= (self.response_status_code or 0)
             < drf_status.HTTP_300_MULTIPLE_CHOICES

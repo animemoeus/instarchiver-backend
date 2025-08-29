@@ -92,7 +92,7 @@ def make_request(
         request_headers=dict(session.headers),
         request_params=params or {},
         request_body=data or {},
-        status="pending",
+        status=APIRequestLog.STATUS_PENDING,
     )
 
     start_time = time.time()
@@ -113,7 +113,7 @@ def make_request(
         api_log.response_status_code = response.status_code
         api_log.response_headers = dict(response.headers)
         api_log.duration_ms = duration_ms
-        api_log.status = "success"
+        api_log.status = APIRequestLog.STATUS_SUCCESS
 
         try:
             api_log.response_body = response.json()
@@ -127,7 +127,7 @@ def make_request(
 
     except requests.exceptions.Timeout as e:
         duration_ms = int((time.time() - start_time) * 1000)
-        api_log.status = "timeout"
+        api_log.status = APIRequestLog.STATUS_TIMEOUT
         api_log.duration_ms = duration_ms
         api_log.error_message = str(e)
         api_log.save()
@@ -136,7 +136,7 @@ def make_request(
 
     except requests.RequestException as e:
         duration_ms = int((time.time() - start_time) * 1000)
-        api_log.status = "error"
+        api_log.status = APIRequestLog.STATUS_ERROR
         api_log.duration_ms = duration_ms
         api_log.error_message = str(e)
 
