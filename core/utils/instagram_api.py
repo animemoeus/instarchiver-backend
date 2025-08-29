@@ -19,7 +19,7 @@ def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/web_app/fetch_user_info_by_username_v2/"
+    endpoint = "/api/v1/instagram/web_app/fetch_user_info_by_username_v2"
     params = {"username": username}
 
     logger.info("Fetching user info for username: %s", username)
