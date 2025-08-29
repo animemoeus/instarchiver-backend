@@ -26,6 +26,7 @@ def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
 
     try:
         response = make_request("GET", endpoint, params=params)
+        response.raise_for_status()
         data = response.json()
     except Exception as e:
         logger.exception("Failed to fetch user info for username %s: %s", username, e)  # noqa: TRY401

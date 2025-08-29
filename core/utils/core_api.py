@@ -1,9 +1,11 @@
 import logging
+import time
 from typing import Any
 
 import requests
 from django.core.exceptions import ImproperlyConfigured
 
+from api_logs.models import APIRequestLog
 from settings.models import CoreAPISetting
 
 logger = logging.getLogger(__name__)
@@ -78,10 +80,22 @@ def make_request(
         requests.RequestException: If request fails
     """
     base_url = get_api_url().rstrip("/")
-    endpoint = endpoint.lstrip("/")
-    url = f"{base_url}/{endpoint}"
+    endpoint_clean = endpoint.lstrip("/")
+    url = f"{base_url}/{endpoint_clean}"
 
     session = get_core_api_session()
+
+    # Create log entry
+    api_log = APIRequestLog.objects.create(
+        method=method.upper(),
+        url=url,
+        request_headers=dict(session.headers),
+        request_params=params or {},
+        request_body=data or {},
+        status="pending",
+    )
+
+    start_time = time.time()
 
     try:
         response = session.request(
@@ -91,9 +105,50 @@ def make_request(
             params=params,
             timeout=timeout,
         )
+
+        # Calculate duration
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        # Update log with success
+        api_log.response_status_code = response.status_code
+        api_log.response_headers = dict(response.headers)
+        api_log.duration_ms = duration_ms
+        api_log.status = "success"
+
+        try:
+            api_log.response_body = response.json()
+        except ValueError:
+            api_log.response_body = {"raw_content": response.text[:1000]}
+
+        api_log.save()
+
         response.raise_for_status()
         return response  # noqa: TRY300
+
+    except requests.exceptions.Timeout as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        api_log.status = "timeout"
+        api_log.duration_ms = duration_ms
+        api_log.error_message = str(e)
+        api_log.save()
+        logger.exception("Core API request timeout: %s", e)  # noqa: TRY401
+        raise
+
     except requests.RequestException as e:
+        duration_ms = int((time.time() - start_time) * 1000)
+        api_log.status = "error"
+        api_log.duration_ms = duration_ms
+        api_log.error_message = str(e)
+
+        if hasattr(e, "response") and e.response is not None:
+            api_log.response_status_code = e.response.status_code
+            api_log.response_headers = dict(e.response.headers)
+            try:
+                api_log.response_body = e.response.json()
+            except ValueError:
+                api_log.response_body = {"raw_content": e.response.text[:1000]}
+
+        api_log.save()
         logger.exception("Core API request failed: %s", e)  # noqa: TRY401
         raise
 

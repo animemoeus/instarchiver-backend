@@ -90,6 +90,18 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "API Monitoring",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "API Request Logs",
+                        "icon": "history",
+                        "link": "/admin/api_logs/apirequestlog/",
+                    },
+                ],
+            },
+            {
                 "title": "Settings",
                 "separator": True,
                 "collapsible": True,
