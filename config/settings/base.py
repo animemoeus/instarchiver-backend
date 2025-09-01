@@ -2,6 +2,7 @@
 """Base settings to build other settings files upon."""
 
 import ssl
+import sys
 from pathlib import Path
 
 import environ
@@ -48,9 +49,15 @@ LOCALE_PATHS = [str(BASE_DIR / "locale")]
 # DATABASES
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#databases
+
+
 DATABASES = {"default": env.db("DATABASE_URL")}
 DATABASES["default"]["ATOMIC_REQUESTS"] = True
-DATABASES["default"]["ENGINE"] = "django_cockroachdb"
+
+# Use Postgres for testing, CockroachDB for production
+if "test" not in sys.argv and "pytest" not in sys.modules:
+    DATABASES["default"]["ENGINE"] = "django_cockroachdb"
+
 # https://docs.djangoproject.com/en/stable/ref/settings/#std:setting-DEFAULT_AUTO_FIELD
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
