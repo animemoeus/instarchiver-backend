@@ -36,20 +36,6 @@ services:
     env_file:
       - ./.envs/.production/.postgres
 
-  traefik:
-    build:
-      context: .
-      dockerfile: ./compose/production/traefik/Dockerfile
-    image: instarchiver_production_traefik
-    depends_on:
-      - django
-    volumes:
-      - instarchiver_production_traefik:/etc/traefik/acme
-    ports:
-      - '0.0.0.0:80:80'
-      - '0.0.0.0:443:443'
-      - '0.0.0.0:5555:5555'
-
   redis:
     image: docker.io/redis:6
 
@@ -76,8 +62,10 @@ services:
     build:
       context: .
       dockerfile: ./compose/production/nginx/Dockerfile
-    image: core_production_nginx
+    image: instarchiver_production_nginx
     depends_on:
       - django
     volumes:
       - instarchiver_production_django_media:/usr/share/nginx/media:ro
+    ports:
+      - 64001:80
