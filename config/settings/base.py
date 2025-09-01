@@ -92,6 +92,7 @@ THIRD_PARTY_APPS = [
 LOCAL_APPS = [
     "core.users",
     # Your stuff: custom apps go here
+    "authentication",
     "api_logs",
     "settings",
 ]
