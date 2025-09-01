@@ -108,8 +108,7 @@ class LoginWithGoogleView(APIView):
                 email=user_info.get("email"),
                 defaults={
                     "username": user_info.get("email"),
-                    "first_name": user_info.get("first_name", ""),
-                    "last_name": user_info.get("last_name", ""),
+                    "name": user_info.get("name", ""),
                 },
             )
 

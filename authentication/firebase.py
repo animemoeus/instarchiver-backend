@@ -91,8 +91,7 @@ def get_user_info(token: str) -> dict[str, Any]:
         dict: A dictionary containing the user's information with the following keys:
             - uid (str): The user's unique identifier.
             - email (str): The user's email address.
-            - first_name (str): The user's first name extracted from display_name.
-            - last_name (str): The user's last name extracted from display_name.
+            - name (str): The user's full name from display_name.
             - photo_url (str): The URL to the user's profile photo.
 
     Raises:
@@ -103,17 +102,9 @@ def get_user_info(token: str) -> dict[str, Any]:
     uid = decoded_token["uid"]
     user = auth.get_user(uid)
 
-    first_name = user.display_name.split(" ")[0] if user.display_name else ""
-    last_name = (
-        user.display_name.split(" ")[-1]
-        if user.display_name and len(user.display_name.split(" ")) > 1
-        else ""
-    )
-
     return {
         "uid": user.uid,
         "email": user.email,
-        "first_name": first_name,
-        "last_name": last_name,
+        "name": user.display_name or "",
         "photo_url": user.photo_url,
     }

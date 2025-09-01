@@ -35,6 +35,5 @@ class UserInfoSerializer(serializers.Serializer):
 
     uid = serializers.CharField(read_only=True)
     email = serializers.EmailField(read_only=True)
-    first_name = serializers.CharField(read_only=True)
-    last_name = serializers.CharField(read_only=True)
+    name = serializers.CharField(read_only=True)
     photo_url = serializers.URLField(read_only=True, allow_null=True)

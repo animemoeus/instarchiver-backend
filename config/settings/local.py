@@ -25,6 +25,9 @@ CACHES = {
     },
 }
 
+CORS_ALLOW_ALL_ORIGINS = True
+
+
 # EMAIL
 # ------------------------------------------------------------------------------
 # https://docs.djangoproject.com/en/dev/ref/settings/#email-host
