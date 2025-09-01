@@ -33,3 +33,5 @@ django-solo==2.4.0  # https://github.com/lazybird/django-solo
 
 #OpenAI
 openai==1.102.0  # https://pypi.org/project/openai/
+
+django-cockroachdb==5.2  # https://github.com/cockroachdb/django-cockroachdb
