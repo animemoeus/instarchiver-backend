@@ -10,6 +10,7 @@ from unfold.decorators import action
 from core.utils import openai
 
 from .models import CoreAPISetting
+from .models import FirebaseAdminSetting
 from .models import OpenAISetting
 
 
@@ -61,6 +62,26 @@ class CoreAPISettingAdmin(SingletonModelAdmin, ModelAdmin):
             {
                 "fields": ("api_url", "api_token"),
                 "description": "Configure Core API settings",
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+            },
+        ),
+    )
+    readonly_fields = ("created_at", "updated_at")
+
+
+@admin.register(FirebaseAdminSetting)
+class FirebaseAdminSettingAdmin(SingletonModelAdmin, ModelAdmin):
+    fieldsets = (
+        (
+            "Firebase Admin Configuration",
+            {
+                "fields": ("service_account_file", "project_id"),
+                "description": "Configure Firebase Admin SDK settings",
             },
         ),
         (

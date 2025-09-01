@@ -48,3 +48,27 @@ class CoreAPISetting(SingletonModel):
 
     class Meta:
         verbose_name = "Core API Setting"
+
+
+class FirebaseAdminSetting(SingletonModel):
+    service_account_file = models.FileField(
+        upload_to="firebase/",
+        blank=True,
+        null=True,
+        help_text="Firebase Admin SDK Service Account JSON file",
+    )
+    project_id = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        help_text="Firebase Project ID (optional, usually in service account file)",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Firebase Admin Settings"
+
+    class Meta:
+        verbose_name = "Firebase Admin Setting"

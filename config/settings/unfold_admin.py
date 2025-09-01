@@ -116,6 +116,11 @@ UNFOLD = {
                         "icon": "api",
                         "link": "/admin/settings/coreapisetting/",
                     },
+                    {
+                        "title": "Firebase Admin Settings",
+                        "icon": "cloud",
+                        "link": "/admin/settings/firebaseadminsetting/",
+                    },
                 ],
             },
         ],
