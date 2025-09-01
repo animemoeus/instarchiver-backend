@@ -42,7 +42,7 @@ class UserAdmin(auth_admin.UserAdmin, ModelAdmin):
     change_password_form = AdminPasswordChangeForm
     fieldsets = (
         (None, {"fields": ("username", "password")}),
-        (_("Personal info"), {"fields": ("name", "email")}),
+        (_("Personal info"), {"fields": ("name", "email", "photo_url")}),
         (
             _("Permissions"),
             {

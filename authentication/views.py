@@ -109,8 +109,13 @@ class LoginWithGoogleView(APIView):
                 defaults={
                     "username": user_info.get("email"),
                     "name": user_info.get("name", ""),
+                    "photo_url": user_info.get("photo_url", ""),
                 },
             )
+
+            user.name = user_info.get("name", "")
+            user.photo_url = user_info.get("photo_url", "")
+            user.save()
 
             # Activate the user if they are not already active
             if not user.is_active:
