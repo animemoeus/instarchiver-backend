@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.auth import get_user_model
 from django.db import transaction
 from drf_spectacular.utils import OpenApiResponse
@@ -13,6 +15,7 @@ from .serializers import LoginWithGoogleSerializer
 from .serializers import RefreshTokenSerializer
 
 User = get_user_model()
+logger = logging.getLogger(__name__)
 
 
 class RefreshTokenView(APIView):
@@ -97,9 +100,13 @@ class LoginWithGoogleView(APIView):
 
         try:
             user_info = firebase.get_user_info(token)
-        except Exception as e:  # noqa: BLE001
+        except Exception:
+            logger.exception("Firebase authentication failed")
             return Response(
-                {"error": "Authentication failed", "details": str(e)},
+                {
+                    "error": "Authentication failed",
+                    "detail": "Invalid or expired token",
+                },
                 status=status.HTTP_401_UNAUTHORIZED,
             )
 
