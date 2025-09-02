@@ -1,3 +1,4 @@
+import json
 import sys
 from typing import Any
 
@@ -21,36 +22,68 @@ def _get_firebase_credentials():
         msg = "Cannot access Firebase settings"
         raise ImproperlyConfigured(msg) from e
 
-    if not firebase_settings.service_account_file:
-        msg = "Firebase service account file not configured"
-        raise ImproperlyConfigured(msg)
+    # First, try to use JSON content if available (preferred for production)
+    if firebase_settings.service_account_json:
+        try:
+            service_account_data = json.loads(firebase_settings.service_account_json)
+            return credentials.Certificate(service_account_data)
+        except (json.JSONDecodeError, ValueError) as e:
+            msg = "Invalid Firebase service account JSON content"
+            raise ImproperlyConfigured(msg) from e
 
-    return firebase_settings.service_account_file.path
+    # Fall back to file-based approach
+    if firebase_settings.service_account_file:
+        try:
+            # Handle both local files and S3-stored files
+            if hasattr(firebase_settings.service_account_file, "read"):
+                # For S3 or other storage backends, read the file content
+                file_content = firebase_settings.service_account_file.read()
+                if isinstance(file_content, bytes):
+                    file_content = file_content.decode("utf-8")
+                service_account_data = json.loads(file_content)
+                return credentials.Certificate(service_account_data)
+            # For local file storage, use the file path
+            return credentials.Certificate(
+                firebase_settings.service_account_file.path,
+            )
+        except (json.JSONDecodeError, FileNotFoundError, ValueError) as e:
+            msg = "Cannot read Firebase service account file"
+            raise ImproperlyConfigured(msg) from e
+
+    msg = (
+        "Firebase service account not configured (provide either JSON content or file)"
+    )
+    raise ImproperlyConfigured(msg)
 
 
-def _initialize_firebase_app():
-    """Initialize Firebase app with credentials from database."""
+def _ensure_firebase_initialized():
+    """Ensure Firebase app is initialized before use."""
+    global _firebase_app_initialized  # noqa: PLW0603
+
+    if _firebase_app_initialized:
+        return
+
     # Check if we're in test environment
     is_testing = "pytest" in sys.modules
 
     if is_testing:
         # For tests, try to initialize if settings exist, otherwise skip
         try:
-            cred_path = _get_firebase_credentials()
-            cred = credentials.Certificate(cred_path)
+            cred = _get_firebase_credentials()
             firebase_admin.initialize_app(cred)
+            _firebase_app_initialized = True
         except (ImproperlyConfigured, FileNotFoundError):
             # Silently skip Firebase initialization in test environment
             pass
     else:
         # In non-test environments, credentials must be properly configured
-        cred_path = _get_firebase_credentials()
-        cred = credentials.Certificate(cred_path)
+        cred = _get_firebase_credentials()
         firebase_admin.initialize_app(cred)
+        _firebase_app_initialized = True
 
 
-# Initialize Firebase app when module is imported
-_initialize_firebase_app()
+# Firebase app will be initialized lazily when needed
+_firebase_app_initialized = False
 
 
 def validate_token(token: str) -> dict[str, Any]:
@@ -70,6 +103,7 @@ def validate_token(token: str) -> dict[str, Any]:
     Raises:
         Exception: If the token is invalid or verification fails.
     """
+    _ensure_firebase_initialized()
     try:
         return auth.verify_id_token(token)
     except Exception as e:
@@ -98,6 +132,7 @@ def get_user_info(token: str) -> dict[str, Any]:
         Exception: If the token is invalid or there's an issue with
         Firebase authentication.
     """
+    _ensure_firebase_initialized()
     decoded_token = auth.verify_id_token(token)
     uid = decoded_token["uid"]
     user = auth.get_user(uid)

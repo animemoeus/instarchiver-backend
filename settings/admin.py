@@ -80,8 +80,16 @@ class FirebaseAdminSettingAdmin(SingletonModelAdmin, ModelAdmin):
         (
             "Firebase Admin Configuration",
             {
-                "fields": ("service_account_file", "project_id"),
-                "description": "Configure Firebase Admin SDK settings",
+                "fields": (
+                    "service_account_json",
+                    "service_account_file",
+                    "project_id",
+                ),
+                "description": (
+                    "Configure Firebase Admin SDK settings. "
+                    "For production, use JSON content field. "
+                    "For development, you can upload a file."
+                ),
             },
         ),
         (
