@@ -22,7 +22,6 @@ def _get_firebase_credentials():
         msg = "Cannot access Firebase settings"
         raise ImproperlyConfigured(msg) from e
 
-    # First, try to use JSON content if available (preferred for production)
     if firebase_settings.service_account_json:
         try:
             service_account_data = json.loads(firebase_settings.service_account_json)
@@ -31,28 +30,7 @@ def _get_firebase_credentials():
             msg = "Invalid Firebase service account JSON content"
             raise ImproperlyConfigured(msg) from e
 
-    # Fall back to file-based approach
-    if firebase_settings.service_account_file:
-        try:
-            # Handle both local files and S3-stored files
-            if hasattr(firebase_settings.service_account_file, "read"):
-                # For S3 or other storage backends, read the file content
-                file_content = firebase_settings.service_account_file.read()
-                if isinstance(file_content, bytes):
-                    file_content = file_content.decode("utf-8")
-                service_account_data = json.loads(file_content)
-                return credentials.Certificate(service_account_data)
-            # For local file storage, use the file path
-            return credentials.Certificate(
-                firebase_settings.service_account_file.path,
-            )
-        except (json.JSONDecodeError, FileNotFoundError, ValueError) as e:
-            msg = "Cannot read Firebase service account file"
-            raise ImproperlyConfigured(msg) from e
-
-    msg = (
-        "Firebase service account not configured (provide either JSON content or file)"
-    )
+    msg = "Firebase service account JSON content not configured"
     raise ImproperlyConfigured(msg)
 
 
@@ -62,6 +40,15 @@ def _ensure_firebase_initialized():
 
     if _firebase_app_initialized:
         return
+
+    # Check if default app already exists
+    try:
+        firebase_admin.get_app()
+        _firebase_app_initialized = True
+        return  # noqa: TRY300
+    except ValueError:
+        # Default app doesn't exist, proceed with initialization
+        pass
 
     # Check if we're in test environment
     is_testing = "pytest" in sys.modules
