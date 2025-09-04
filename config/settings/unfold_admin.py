@@ -90,6 +90,18 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Instagram",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Users",
+                        "icon": "account_circle",
+                        "link": "/admin/instagram/user/",
+                    },
+                ],
+            },
+            {
                 "title": "API Monitoring",
                 "separator": True,
                 "collapsible": True,
