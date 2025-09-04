@@ -28,46 +28,32 @@ class InstagramUserAdmin(ModelAdmin):
     search_fields = ["username", "full_name", "instagram_id"]
     readonly_fields = ["uuid", "created_at", "updated_at", "api_updated_at"]
     fieldsets = (
-        (None, {"fields": ("username", "instagram_id")}),
         (
-            "Profile Information",
+            "General",
             {
                 "fields": (
+                    "username",
+                    "instagram_id",
                     "full_name",
                     "biography",
                     "profile_picture",
                     "original_profile_picture_url",
-                ),
-            },
-        ),
-        (
-            "Status",
-            {"fields": ("is_private", "is_verified")},
-        ),
-        (
-            "Statistics",
-            {
-                "fields": (
+                    "is_private",
+                    "is_verified",
                     "media_count",
                     "follower_count",
                     "following_count",
-                ),
-            },
-        ),
-        (
-            "Settings",
-            {
-                "fields": (
                     "allow_auto_update_stories",
                     "allow_auto_update_profile",
                 ),
+                "classes": ["tab"],
             },
         ),
         (
             "Metadata",
             {
                 "fields": ("uuid", "created_at", "updated_at", "api_updated_at"),
-                "classes": ("collapse",),
+                "classes": ["tab"],
             },
         ),
     )
