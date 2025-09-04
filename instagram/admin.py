@@ -26,7 +26,13 @@ class InstagramUserAdmin(ModelAdmin):
         "api_updated_at",
     ]
     search_fields = ["username", "full_name", "instagram_id"]
-    readonly_fields = ["uuid", "created_at", "updated_at", "api_updated_at"]
+    readonly_fields = [
+        "uuid",
+        "created_at",
+        "updated_at",
+        "api_updated_at",
+        "raw_api_data",
+    ]
     fieldsets = (
         (
             "General",
@@ -52,7 +58,13 @@ class InstagramUserAdmin(ModelAdmin):
         (
             "Metadata",
             {
-                "fields": ("uuid", "created_at", "updated_at", "api_updated_at"),
+                "fields": (
+                    "uuid",
+                    "created_at",
+                    "updated_at",
+                    "api_updated_at",
+                    "raw_api_data",
+                ),
                 "classes": ["tab"],
             },
         ),
