@@ -23,6 +23,7 @@ class User(models.Model):
         upload_to=get_user_profile_picture_upload_location,
         blank=True,
         null=True,
+        max_length=512,
     )
     original_profile_picture_url = models.URLField(
         max_length=2500,
