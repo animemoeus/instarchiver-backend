@@ -3,6 +3,7 @@ import uuid
 
 from django.db import models
 from django.utils import timezone
+from simple_history.models import HistoricalRecords
 
 from core.utils.instagram_api import fetch_user_info_by_user_id
 from core.utils.instagram_api import fetch_user_info_by_username_v2
@@ -47,6 +48,7 @@ class User(models.Model):
         blank=True,
         null=True,
     )
+    history = HistoricalRecords()
 
     def __str__(self):
         return self.username

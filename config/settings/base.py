@@ -71,6 +71,7 @@ DJANGO_APPS = [
     "django.contrib.staticfiles",
     # "django.contrib.humanize", # Handy template tags
     "unfold",
+    "unfold.contrib.simple_history",
     "django.contrib.admin",
     "django.forms",
 ]
@@ -79,13 +80,12 @@ THIRD_PARTY_APPS = [
     "crispy_bootstrap5",
     "allauth",
     "allauth.account",
-    # "allauth.mfa",
-    # "allauth.socialaccount",
     "django_celery_beat",
     "rest_framework",
     "rest_framework.authtoken",
     "corsheaders",
     "drf_spectacular",
+    "simple_history",
     "solo",
 ]
 
@@ -154,6 +154,7 @@ MIDDLEWARE = [
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "allauth.account.middleware.AccountMiddleware",
+    "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
 # STATIC

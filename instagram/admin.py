@@ -1,11 +1,12 @@
 from django.contrib import admin
+from simple_history.admin import SimpleHistoryAdmin
 from unfold.admin import ModelAdmin
 
 from .models import User
 
 
 @admin.register(User)
-class InstagramUserAdmin(ModelAdmin):
+class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
     list_display = [
         "username",
         "full_name",
