@@ -6,4 +6,4 @@ class InstagramConfig(AppConfig):
     name = "instagram"
 
     def ready(self):
-        pass
+        import instagram.signals  # noqa: F401, PLC0415
