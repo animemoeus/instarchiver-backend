@@ -1,3 +1,9 @@
+import uuid
+from pathlib import Path
+
+
 def get_user_profile_picture_upload_location(instance, filename):
-    # File will be uploaded to MEDIA_ROOT/user_<id>/<filename>
-    return f"users/{instance.username}/{filename}"
+    # Generate random UUID filename while preserving extension
+    file_extension = Path(filename).suffix
+    random_filename = str(uuid.uuid4())
+    return f"users/{instance.username}/{random_filename}{file_extension}"
