@@ -12,3 +12,11 @@ REDIS_URL=redis://redis:6379/0
 # Flower
 CELERY_FLOWER_USER=yMGJFuaXNABOWuubPRaqZpCHxZGhsCyq
 CELERY_FLOWER_PASSWORD=UK1adODamgA5go35ryizj9H0aAf8R35WfXFp23F4G7pTaXI04QT0OmSEz4mHgTfH
+
+# Cloudflare R2
+# ------------------------------------------------------------------------------
+AWS_STORAGE_BUCKET_NAME="instarchiver"
+AWS_S3_ENDPOINT_URL="https://cloudflarestorage.com"
+AWS_S3_ACCESS_KEY_ID="123"
+AWS_S3_SECRET_ACCESS_KEY="123"
+AWS_S3_CUSTOM_DOMAIN="cdn.instarchiver.net"
