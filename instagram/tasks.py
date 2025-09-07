@@ -10,8 +10,8 @@ from .models import User
 logger = logging.getLogger(__name__)
 
 
-@shared_task
-def update_profile_picture_from_url(user_id):
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def update_profile_picture_from_url(self, user_id):
     """
     Update user's profile picture from Instagram URL if content has changed.
     Uses hash comparison to detect actual image content changes.
@@ -35,14 +35,13 @@ def update_profile_picture_from_url(user_id):
         new_image_content = response.content
         new_image_hash = hashlib.sha256(new_image_content).hexdigest()
 
-        # Get hash of existing profile picture if it exists
+        # Get hash of existing profile picture if it exists (S3-compatible)
         existing_image_hash = None
-        if user.profile_picture and hasattr(user.profile_picture, "file"):
+        if user.profile_picture:
             try:
-                user.profile_picture.file.seek(0)
-                existing_content = user.profile_picture.file.read()
-                existing_image_hash = hashlib.sha256(existing_content).hexdigest()
-                user.profile_picture.file.seek(0)  # Reset file pointer
+                with user.profile_picture.open("rb") as f:
+                    existing_content = f.read()
+                    existing_image_hash = hashlib.sha256(existing_content).hexdigest()
             except OSError as e:
                 logger.warning(
                     "Could not read existing profile picture for %s: %s",
@@ -66,8 +65,10 @@ def update_profile_picture_from_url(user_id):
             save=False,  # Don't save model yet to avoid triggering signal again
         )
 
-        # Save the user model (this will trigger the signal, but we'll handle that)
-        user.save(update_fields=["profile_picture"])
+        # Update using queryset to avoid triggering signals
+        User.objects.filter(uuid=user.uuid).update(
+            profile_picture=user.profile_picture.name,
+        )
 
         logger.info("Profile picture updated for user %s", user.username)
         return {  # noqa: TRY300
@@ -77,13 +78,28 @@ def update_profile_picture_from_url(user_id):
             "new_hash": new_image_hash,
         }
 
-    except requests.RequestException as e:
-        logger.exception("Failed to download profile picture for %s", user.username)
-        return {"success": False, "error": f"Download failed: {e!s}"}
+    except (requests.RequestException, OSError) as e:
+        # Retryable errors: network issues, S3 timeouts, temporary file access issues
+        logger.warning(
+            "Retryable error updating profile picture for %s (attempt %s/%s): %s",
+            user.username,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            e,
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries)) from e
 
-    except Exception as e:
         logger.exception(
-            "Unexpected error updating profile picture for %s",
+            "Max retries exceeded for profile picture update for %s",
             user.username,
         )
-        return {"success": False, "error": f"Unexpected error: {e!s}"}
+        return {"success": False, "error": f"Max retries exceeded: {e!s}"}
+
+    except Exception as e:
+        # Non-retryable errors: permanent failures
+        logger.exception(
+            "Permanent error updating profile picture for %s",
+            user.username,
+        )
+        return {"success": False, "error": f"Permanent error: {e!s}"}
