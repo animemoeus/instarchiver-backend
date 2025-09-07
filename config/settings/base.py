@@ -355,7 +355,7 @@ SPECTACULAR_SETTINGS = {
     "TITLE": "Instarchiver API",
     "DESCRIPTION": "Documentation of API endpoints of Instarchiver",
     "VERSION": "1.0.0",
-    "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
+    # "SERVE_PERMISSIONS": ["rest_framework.permissions.IsAdminUser"],
     "SCHEMA_PATH_PREFIX": "/api/",
 }
 # Django Unfold configuration is imported from unfold_admin.py
