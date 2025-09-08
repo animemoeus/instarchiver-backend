@@ -21,35 +21,32 @@ class APIRequestLogAdmin(ModelAdmin):
 
     fieldsets = [
         (
-            "Request Info",
+            "General",
             {
-                "fields": ["method", "url", "status"],
+                "fields": [
+                    "method",
+                    "url",
+                    "status",
+                    "duration_ms",
+                    "error_message",
+                    "created_at",
+                    "updated_at",
+                ],
+                "classes": ["tab"],
             },
         ),
         (
-            "Request Details",
+            "Request",
             {
                 "fields": ["request_headers", "request_params", "request_body"],
-                "classes": ["collapse"],
+                "classes": ["tab"],
             },
         ),
         (
-            "Response Details",
+            "Response",
             {
                 "fields": ["response_status_code", "response_headers", "response_body"],
-                "classes": ["collapse"],
-            },
-        ),
-        (
-            "Timing & Errors",
-            {
-                "fields": ["duration_ms", "error_message"],
-            },
-        ),
-        (
-            "Timestamps",
-            {
-                "fields": ["created_at", "updated_at"],
+                "classes": ["tab"],
             },
         ),
     ]
