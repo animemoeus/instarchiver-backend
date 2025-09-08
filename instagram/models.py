@@ -9,6 +9,7 @@ from core.utils.instagram_api import fetch_user_info_by_user_id
 from core.utils.instagram_api import fetch_user_info_by_username_v2
 
 from .misc import get_user_profile_picture_upload_location
+from .misc import get_user_story_upload_location
 
 logger = logging.getLogger(__name__)
 
@@ -128,3 +129,31 @@ class User(models.Model):
         # Update timestamp and save
         self.api_updated_at = timezone.now()
         self.save()
+
+
+class Story(models.Model):
+    story_id = models.CharField(unique=True, max_length=50, primary_key=True)
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    thumbnail_url = models.URLField(max_length=2500)
+    media_url = models.URLField(max_length=2500, blank=True)
+
+    thumbnail = models.ImageField(
+        upload_to=get_user_story_upload_location,
+        blank=True,
+        null=True,
+    )
+    media = models.FileField(
+        upload_to=get_user_story_upload_location,
+        blank=True,
+        null=True,
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    story_created_at = models.DateTimeField()
+
+    class Meta:
+        verbose_name = "Story"
+        verbose_name_plural = "Stories"
+
+    def __str__(self):
+        return f"{self.user.username} - {self.story_id}"
