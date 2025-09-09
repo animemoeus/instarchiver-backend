@@ -157,3 +157,35 @@ class Story(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.story_id}"
+
+
+class UserUpdateStoryLog(models.Model):
+    STATUS_PENDING = "PENDING"
+    STATUS_IN_PROGRESS = "IN_PROGRESS"
+    STATUS_COMPLETED = "COMPLETED"
+    STATUS_FAILED = "FAILED"
+    STATUS_CHOICES = [
+        (STATUS_PENDING, "Pending"),
+        (STATUS_IN_PROGRESS, "In Progress"),
+        (STATUS_COMPLETED, "Completed"),
+        (STATUS_FAILED, "Failed"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE)
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default=STATUS_PENDING,
+    )
+    message = models.TextField(blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "User Update Story Log"
+        verbose_name_plural = "User Update Story Logs"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Story Update for {self.user.username} - {self.status}"

@@ -9,6 +9,7 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
 from .models import User
+from .models import UserUpdateStoryLog
 
 
 @admin.register(User)
@@ -100,3 +101,24 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
             )
 
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
+
+
+@admin.register(UserUpdateStoryLog)
+class UserUpdateStoryLogAdmin(ModelAdmin):
+    list_display = [
+        "user",
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+    list_filter = [
+        "status",
+        "created_at",
+        "updated_at",
+    ]
+    search_fields = ["user__username"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+    ]
+    ordering = ["-created_at"]
