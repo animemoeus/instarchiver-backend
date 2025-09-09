@@ -163,22 +163,24 @@ class User(models.Model):
                 raise Exception(msg)  # noqa: TRY002, TRY301
 
             # Extract stories data
-            stories_data = response.get("data", {}).get("stories", [])
+            stories_data = response.get("data", {}).get("data", {}).get("items", [])
             updated_stories = []
 
             # Process each story
             for story_data in stories_data:
                 story_id = story_data.get("id")
-                if not story_id:
-                    continue
 
                 # Create or update story
                 story, created = Story.objects.get_or_create(
                     story_id=story_id,
                     defaults={
+                        "story_id": story_id,
                         "user": self,
-                        "thumbnail_url": story_data.get("thumbnail_url", ""),
-                        "media_url": story_data.get("media_url", ""),
+                        "thumbnail_url": story_data.get("thumbnail_url_original"),
+                        "media_url": story_data.get("video_url_original")
+                        or story_data.get("thumbnail_url_original"),
+                        "story_created_at": story_data.get("taken_at_date"),
+                        "raw_api_data": story_data,
                     },
                 )
 
@@ -206,7 +208,8 @@ class User(models.Model):
             return updated_stories  # noqa: TRY300
 
         except Exception as e:
-            # Update log entry with failure if not already updated
+            # Update log entry with failure if not
+            #  already updated
             if log_entry.status == UserUpdateStoryLog.STATUS_IN_PROGRESS:
                 log_entry.status = UserUpdateStoryLog.STATUS_FAILED
                 log_entry.message = str(e)
@@ -250,6 +253,7 @@ class Story(models.Model):
         blank=True,
         null=True,
     )
+    raw_api_data = models.JSONField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     story_created_at = models.DateTimeField()
