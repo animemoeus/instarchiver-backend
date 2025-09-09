@@ -103,3 +103,79 @@ def update_profile_picture_from_url(self, user_id):
             user.username,
         )
         return {"success": False, "error": f"Permanent error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def update_user_stories_from_api(self, user_id):
+    """
+    Update user's stories from Instagram API in the background.
+    Delegates business logic to the User model method.
+    """
+    try:
+        user = User.objects.get(uuid=user_id)
+    except User.DoesNotExist:
+        logger.exception("User with ID %s not found", user_id)
+        return {"success": False, "error": "User not found"}
+
+    try:
+        # Call the model method which handles all business logic
+        updated_stories = user._update_stories_from_api()  # noqa: SLF001
+
+        stories_count = len(updated_stories) if updated_stories else 0
+        logger.info(
+            "Successfully updated %d stories for user %s via Celery task",
+            stories_count,
+            user.username,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": f"Successfully updated {stories_count} stories",
+            "stories_count": stories_count,
+            "username": user.username,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error updating stories for %s (attempt %s/%s): %s",
+                user.username,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to update stories for user %s after %s attempts",
+            user.username,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "username": user.username,
+            "attempts": self.request.retries + 1,
+        }

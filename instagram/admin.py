@@ -8,13 +8,14 @@ from simple_history.admin import SimpleHistoryAdmin
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
+from .models import Story
 from .models import User
 from .models import UserUpdateStoryLog
 
 
 @admin.register(User)
 class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
-    actions_detail = ["update_from_api"]
+    actions_detail = ["update_from_api", "update_stories_from_api"]
     list_display = [
         "username",
         "full_name",
@@ -102,6 +103,28 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
 
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
 
+    @action(
+        description=_("Update stories from Instagram API"),
+        url_path="update-stories-from-api",
+        permissions=["change"],
+    )
+    def update_stories_from_api(self, request: HttpRequest, object_id: str):
+        """Update user stories from Instagram API asynchronously."""
+        try:
+            user = User.objects.get(pk=object_id)
+            task_result = user.update_stories_from_api_async()
+            messages.success(
+                request,
+                f"Successfully queued story update task for {user.username}. Task ID: {task_result.id}",  # noqa: E501
+            )
+        except Exception as e:  # noqa: BLE001
+            messages.error(
+                request,
+                "Failed to queue story update task: %s" % str(e),  # noqa: UP031
+            )
+
+        return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
+
 
 @admin.register(UserUpdateStoryLog)
 class UserUpdateStoryLogAdmin(ModelAdmin):
@@ -120,5 +143,31 @@ class UserUpdateStoryLogAdmin(ModelAdmin):
     readonly_fields = [
         "created_at",
         "updated_at",
+    ]
+    ordering = ["-created_at"]
+
+
+@admin.register(Story)
+class StoryAdmin(ModelAdmin):
+    list_display = [
+        "story_id",
+        "user",
+        "thumbnail_url",
+        "media_url",
+        "created_at",
+        "story_created_at",
+    ]
+    list_filter = [
+        "user",
+        "created_at",
+        "story_created_at",
+    ]
+    search_fields = [
+        "story_id",
+        "user__username",
+    ]
+    readonly_fields = [
+        "story_id",
+        "created_at",
     ]
     ordering = ["-created_at"]
