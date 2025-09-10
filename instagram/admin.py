@@ -131,6 +131,7 @@ class UserUpdateStoryLogAdmin(ModelAdmin):
     list_display = [
         "user",
         "status",
+        "message",
         "created_at",
         "updated_at",
     ]
@@ -152,8 +153,6 @@ class StoryAdmin(ModelAdmin):
     list_display = [
         "story_id",
         "user",
-        "thumbnail_url",
-        "media_url",
         "created_at",
         "story_created_at",
     ]

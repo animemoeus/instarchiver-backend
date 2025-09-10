@@ -171,7 +171,7 @@ class User(models.Model):
                 story_id = story_data.get("id")
 
                 # Create or update story
-                story, created = Story.objects.get_or_create(
+                story, _ = Story.objects.get_or_create(
                     story_id=story_id,
                     defaults={
                         "story_id": story_id,
@@ -183,15 +183,6 @@ class User(models.Model):
                         "raw_api_data": story_data,
                     },
                 )
-
-                # Update existing story if needed
-                if not created:
-                    story.thumbnail_url = story_data.get(
-                        "thumbnail_url",
-                        story.thumbnail_url,
-                    )
-                    story.media_url = story_data.get("media_url", story.media_url)
-                    story.save()
 
                 updated_stories.append(story)
 
