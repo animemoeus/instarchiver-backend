@@ -22,6 +22,7 @@ crispy-bootstrap5==2025.6  # https://github.com/django-crispy-forms/crispy-boots
 django-redis==6.0.0  # https://github.com/jazzband/django-redis
 django-simple-history==3.10.1  # https://django-simple-history.readthedocs.io/en/stable/index.html
 django-storages==1.14.6  # https://github.com/jschneier/django-storages
+django-celery-results==2.6.0  # https://django-celery-results.readthedocs.io/en/latest/
 # Django REST Framework
 djangorestframework==3.16.1  # https://github.com/encode/django-rest-framework
 django-cors-headers==4.7.0  # https://github.com/adamchainz/django-cors-headers

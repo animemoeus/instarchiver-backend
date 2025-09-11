@@ -90,6 +90,23 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Celery Results",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Task Results",
+                        "icon": "assignment_turned_in",
+                        "link": "/admin/django_celery_results/taskresult/",
+                    },
+                    {
+                        "title": "Group Results",
+                        "icon": "group_work",
+                        "link": "/admin/django_celery_results/groupresult/",
+                    },
+                ],
+            },
+            {
                 "title": "Instagram",
                 "separator": True,
                 "collapsible": True,
