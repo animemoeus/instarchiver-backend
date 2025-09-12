@@ -231,7 +231,7 @@ class User(models.Model):
 class Story(models.Model):
     story_id = models.CharField(unique=True, max_length=50, primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
-    thumbnail_url = models.URLField(max_length=2500)
+    thumbnail_url = models.URLField(max_length=2500, blank=True)
     media_url = models.URLField(max_length=2500, blank=True)
 
     thumbnail = models.ImageField(

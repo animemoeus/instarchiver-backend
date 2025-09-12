@@ -179,3 +179,322 @@ def update_user_stories_from_api(self, user_id):
             "username": user.username,
             "attempts": self.request.retries + 1,
         }
+
+
+@shared_task
+def auto_update_users_profile():
+    """
+    Update all users' profiles from Instagram API for users with auto-update enabled.
+    Returns summary of operations performed.
+    """
+    try:
+        # Get all users with auto-update profile enabled
+        users = User.objects.filter(allow_auto_update_profile=True)
+        total_users = users.count()
+
+        if total_users == 0:
+            logger.info("No users found with auto-update profile enabled")
+            return {
+                "success": True,
+                "message": "No users to update",
+                "updated": 0,
+                "errors": 0,
+            }
+
+        logger.info("Starting profile update for %d users", total_users)
+
+        updated_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for user in users:
+            try:
+                # Use Celery task to handle each user's profile update
+                task_result = auto_update_user_profile.delay(str(user.uuid))
+                task_ids.append(task_result.id)
+                updated_count += 1
+                logger.info(
+                    "Successfully queued profile update for user: %s (task: %s)",
+                    user.username,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue profile update for user {user.username}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing profile update for user %s",
+                    user.username,
+                )
+
+        logger.info(
+            "Profile update queuing completed: %d queued, %d errors out of %d total users",  # noqa: E501
+            updated_count,
+            error_count,
+            total_users,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Profile update tasks queued",
+            "total": total_users,
+            "queued": updated_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in auto_update_users_profile")
+        return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def auto_update_user_profile(self, user_id):
+    """
+    Update a specific user's profile from Instagram API if auto-update is enabled.
+
+    Args:
+        user_id (str): UUID of the user to update
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        user = User.objects.get(uuid=user_id)
+    except User.DoesNotExist:
+        logger.exception("User with ID %s not found", user_id)
+        return {"success": False, "error": "User not found"}
+
+    if not user.allow_auto_update_profile:
+        logger.info(
+            "Auto-update profile disabled for user %s",
+            user.username,
+        )
+        return {
+            "success": False,
+            "error": "Auto-update profile not enabled for this user",
+            "username": user.username,
+        }
+
+    try:
+        user.update_profile_from_api()
+        logger.info("Successfully updated profile for user: %s", user.username)
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Profile updated successfully",
+            "username": user.username,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error updating profile for %s (attempt %s/%s): %s",
+                user.username,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to update profile for user %s after %s attempts",
+            user.username,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "username": user.username,
+            "attempts": self.request.retries + 1,
+        }
+
+
+@shared_task
+def auto_update_users_story():
+    """
+    Update all users' stories from Instagram API for users with auto-update enabled.
+    Uses async story update to queue tasks in Celery.
+    Returns summary of operations performed.
+    """
+    try:
+        # Get all users with auto-update stories enabled
+        users = User.objects.filter(allow_auto_update_stories=True)
+        total_users = users.count()
+
+        if total_users == 0:
+            logger.info("No users found with auto-update stories enabled")
+            return {
+                "success": True,
+                "message": "No users to update",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info("Starting story update for %d users", total_users)
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for user in users:
+            try:
+                # Use Celery task to handle each user's story update
+                task_result = auto_update_user_story.delay(str(user.uuid))
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued story update for user: %s (task: %s)",
+                    user.username,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue story update for user {user.username}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing story update for user %s",
+                    user.username,
+                )
+
+        logger.info(
+            "Story update queuing completed: %d queued, %d errors"
+            " out of %d total users",
+            queued_count,
+            error_count,
+            total_users,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Story update tasks queued",
+            "total": total_users,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in auto_update_users_story")
+        return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def auto_update_user_story(self, user_id):
+    """
+    Update a specific user's stories from Instagram API if auto-update is enabled.
+
+    Args:
+        user_id (str): UUID of the user to update
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        user = User.objects.get(uuid=user_id)
+    except User.DoesNotExist:
+        logger.exception("User with ID %s not found", user_id)
+        return {"success": False, "error": "User not found"}
+
+    if not user.allow_auto_update_stories:
+        logger.info(
+            "Auto-update stories disabled for user %s",
+            user.username,
+        )
+        return {
+            "success": False,
+            "error": "Auto-update stories not enabled for this user",
+            "username": user.username,
+        }
+
+    try:
+        # Use synchronous method to update stories directly
+        updated_stories = user.update_stories_from_api()
+        stories_count = len(updated_stories) if updated_stories else 0
+        logger.info(
+            "Successfully updated %d stories for user: %s",
+            stories_count,
+            user.username,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": f"Successfully updated {stories_count} stories",
+            "username": user.username,
+            "stories_count": stories_count,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error updating stories for %s (attempt %s/%s): %s",
+                user.username,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to update stories for user %s after %s attempts",
+            user.username,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "username": user.username,
+            "attempts": self.request.retries + 1,
+        }
