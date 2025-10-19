@@ -41,6 +41,3 @@ openai==1.108.1  # https://pypi.org/project/openai/
 
 # Firebase Admin
 firebase-admin==7.1.0  # https://pypi.org/project/firebase-admin/
-
-# CrockoachDB
-django-cockroachdb==5.2
