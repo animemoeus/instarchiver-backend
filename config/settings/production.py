@@ -29,6 +29,7 @@ CSRF_TRUSTED_ORIGINS = [
 DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=60)
 DATABASES["default"]["OPTIONS"] = {
     "sslmode": "require",
+    "sslrootcert": "./settings/arter.cert",
 }
 
 # CACHES
