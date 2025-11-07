@@ -9,7 +9,7 @@ django-celery-beat==2.8.1  # https://github.com/celery/django-celery-beat
 flower==2.0.1  # https://github.com/mher/flower
 uvicorn[standard]==0.38.0  # https://github.com/encode/uvicorn
 uvicorn-worker==0.4.0  # https://github.com/Kludex/uvicorn-worker
-boto3==1.40.67  # https://github.com/boto/boto3
+boto3==1.40.68  # https://github.com/boto/boto3
 
 # Django
 # ------------------------------------------------------------------------------
@@ -17,7 +17,7 @@ django==5.2.8  # pyup: < 5.2 # https://www.djangoproject.com/
 django-environ==0.12.0  # https://github.com/joke2k/django-environ
 django-model-utils==5.0.0  # https://github.com/jazzband/django-model-utils
 django-allauth[mfa]==65.13.0  # https://github.com/pennersr/django-allauth
-django-crispy-forms==2.4  # https://github.com/django-crispy-forms/django-crispy-forms
+django-crispy-forms==2.5  # https://github.com/django-crispy-forms/django-crispy-forms
 crispy-bootstrap5==2025.6  # https://github.com/django-crispy-forms/crispy-bootstrap5
 django-redis==6.0.0  # https://github.com/jazzband/django-redis
 django-simple-history==3.10.1  # https://django-simple-history.readthedocs.io/en/stable/index.html
