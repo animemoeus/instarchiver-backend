@@ -17,7 +17,7 @@ services:
       - instarchiver_production_django_media:/app/core/media
     depends_on:
       - postgres
-      # - redis
+      - redis
     env_file:
       - ./.envs/.production/.django
       - ./.envs/.production/.postgres
@@ -36,11 +36,10 @@ services:
     env_file:
       - ./.envs/.production/.postgres
 
-  # redis:
-  #   image: docker.io/redis:6
-
-  #   volumes:
-  #     - instarchiver_production_redis_data:/data
+  redis:
+    image: docker.io/redis:6
+    volumes:
+      - instarchiver_production_redis_data:/data
 
 
   celeryworker:
