@@ -4,9 +4,9 @@ from rest_framework.generics import CreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from .models import Story
-from .models import User
-from .serializers import ProcessInstagramDataSerializer
+from instagram.models import Story
+from instagram.models import User
+from instagram.serializers import ProcessInstagramDataSerializer
 
 
 class ProcessInstagramDataView(CreateAPIView):
