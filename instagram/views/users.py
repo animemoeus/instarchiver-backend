@@ -3,6 +3,7 @@ from django.db.models import OuterRef
 from rest_framework import filters
 from rest_framework.generics import ListAPIView
 from rest_framework.generics import RetrieveAPIView
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 from instagram.models import Story
 from instagram.models import User as InstagramUser
@@ -15,6 +16,7 @@ class InstagramUserListView(ListAPIView):
     queryset = InstagramUser.objects.all().order_by("-created_at")
     serializer_class = InstagramUserListSerializer
     pagination_class = InstagramUserCursorPagination
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ["username", "full_name", "biography"]
@@ -24,7 +26,7 @@ class InstagramUserListView(ListAPIView):
     def get_queryset(self):
         return (
             InstagramUser.objects.all()
-            .prefetch_related("story_set", "history")
+            .prefetch_related("story_set")
             .annotate(
                 has_stories=Exists(Story.objects.filter(user=OuterRef("pk"))),
                 has_history=Exists(
@@ -42,7 +44,7 @@ class InstagramUserDetailView(RetrieveAPIView):
     def get_queryset(self):
         return (
             InstagramUser.objects.all()
-            .prefetch_related("story_set", "history")
+            .prefetch_related("story_set")
             .annotate(
                 has_stories=Exists(Story.objects.filter(user=OuterRef("pk"))),
                 has_history=Exists(

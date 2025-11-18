@@ -10,7 +10,7 @@ class InstagramUserListSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser
-        exclude = ["original_profile_picture_url"]
+        exclude = ["original_profile_picture_url", "raw_api_data"]
 
 
 class InstagramUserDetailSerializer(ModelSerializer):
