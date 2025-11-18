@@ -10,6 +10,7 @@ flower==2.0.1  # https://github.com/mher/flower
 uvicorn[standard]==0.38.0  # https://github.com/encode/uvicorn
 uvicorn-worker==0.4.0  # https://github.com/Kludex/uvicorn-worker
 boto3==1.40.68  # https://github.com/boto/boto3
+Pygments==2.19.2  # https://pygments.org/
 
 # Django
 # ------------------------------------------------------------------------------
