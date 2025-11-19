@@ -39,6 +39,7 @@ class InstagramUserListView(ListAPIView):
 class InstagramUserDetailView(RetrieveAPIView):
     queryset = InstagramUser.objects.all()
     serializer_class = InstagramUserDetailSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = "uuid"
 
     def get_queryset(self):
