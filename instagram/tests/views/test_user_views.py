@@ -1,5 +1,8 @@
+import uuid
+
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
@@ -339,3 +342,170 @@ class InstagramUserListViewTest(TestCase):
             # Test descending
             response = self.client.get(self.url, {"ordering": f"-{field}"})
             assert response.status_code == status.HTTP_200_OK
+
+
+class InstagramUserDetailViewTest(TestCase):
+    """Test suite for InstagramUserDetailView endpoint."""
+
+    def setUp(self):
+        """Set up test client and common test data."""
+        self.client = APIClient()
+
+    def test_retrieve_user_success(self):
+        """Test successful retrieval of a user by UUID."""
+        user = InstagramUserFactory(
+            username="testuser",
+            full_name="Test User",
+            biography="Test bio",
+        )
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["uuid"] == str(user.uuid)
+        assert response.data["username"] == "testuser"
+        assert response.data["full_name"] == "Test User"
+        assert response.data["biography"] == "Test bio"
+
+    def test_retrieve_user_not_found(self):
+        """Test 404 response for non-existent UUID."""
+
+        non_existent_uuid = uuid.uuid4()
+        url = reverse("instagram:user_detail", kwargs={"uuid": non_existent_uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_retrieve_user_unauthenticated_allowed(self):
+        """Test that unauthenticated users can access the endpoint."""
+        user = InstagramUserFactory(username="publicuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["username"] == "publicuser"
+
+    def test_response_structure(self):
+        """Test that the response contains all expected fields."""
+        user = InstagramUserFactory(username="testuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        expected_fields = [
+            "uuid",
+            "instagram_id",
+            "username",
+            "full_name",
+            "profile_picture",
+            "biography",
+            "is_private",
+            "is_verified",
+            "media_count",
+            "follower_count",
+            "following_count",
+            "allow_auto_update_stories",
+            "allow_auto_update_profile",
+            "created_at",
+            "updated_at",
+            "updated_at_from_api",
+            "has_stories",
+            "has_history",
+            "auto_update_stories_limit_count",
+            "auto_update_profile_limit_count",
+        ]
+
+        for field in expected_fields:
+            assert field in response.data, f"Field '{field}' missing from response"
+
+    def test_excluded_fields_not_in_response(self):
+        """Test that excluded fields are not in the detail response."""
+        user = InstagramUserFactory(username="testuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        excluded_fields = ["original_profile_picture_url", "raw_api_data"]
+
+        for field in excluded_fields:
+            assert field not in response.data, (
+                f"Excluded field '{field}' should not be in response"
+            )
+
+    def test_has_stories_annotation(self):
+        """Test that has_stories annotation is present and correct."""
+        # Create user with stories
+        user_with_stories = InstagramUserFactory(username="storyuser")
+        Story.objects.create(
+            story_id="story123",
+            user=user_with_stories,
+            thumbnail_url="https://example.com/thumb.jpg",
+            media_url="https://example.com/media.jpg",
+            story_created_at="2025-01-01T00:00:00Z",
+        )
+
+        # Create user without stories
+        user_without_stories = InstagramUserFactory(username="nostoryuser")
+
+        # Test user with stories
+        url = reverse("instagram:user_detail", kwargs={"uuid": user_with_stories.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["has_stories"] is True
+
+        # Test user without stories
+        url = reverse(
+            "instagram:user_detail",
+            kwargs={"uuid": user_without_stories.uuid},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["has_stories"] is False
+
+    def test_has_history_annotation(self):
+        """Test that has_history annotation is present and correct."""
+        # Create user and trigger a historical record
+        user = InstagramUserFactory(username="historyuser", full_name="Original Name")
+        user.full_name = "Updated Name"
+        user.save()
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "has_history" in response.data
+        assert response.data["has_history"] is True
+
+    def test_auto_update_limit_count_fields(self):
+        """Test that auto_update_*_limit_count fields return 0."""
+        user = InstagramUserFactory(username="testuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["auto_update_stories_limit_count"] == 0
+        assert response.data["auto_update_profile_limit_count"] == 0
+
+    def test_updated_at_from_api_field(self):
+        """Test that api_updated_at is renamed to updated_at_from_api in response."""
+
+        user = InstagramUserFactory(username="testuser")
+        user.api_updated_at = timezone.now()
+        user.save()
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "updated_at_from_api" in response.data
+        assert "api_updated_at" not in response.data
+        assert response.data["updated_at_from_api"] is not None
