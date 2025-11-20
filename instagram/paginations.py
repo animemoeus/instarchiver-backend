@@ -14,6 +14,19 @@ class InstagramUserCursorPagination(CursorPagination):
     cursor_query_param = "cursor"
 
 
+class StoryCursorPagination(CursorPagination):
+    """
+    Cursor pagination for Story list.
+    Orders by created_at (descending) for most recent stories first.
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    ordering = "-created_at"  # Most recent stories first
+    cursor_query_param = "cursor"
+
+
 class InstagramUserHistoryCursorPagination(CursorPagination):
     """
     Cursor pagination for Instagram User history records.
