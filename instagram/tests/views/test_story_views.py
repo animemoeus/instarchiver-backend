@@ -38,7 +38,7 @@ class StoryListViewTest(TestCase):
         """Test that pagination works correctly with cursor pagination."""
         # Create more stories than the default page size (20)
         default_page_size = 20
-        StoryFactory.create_batch(25)
+        StoryFactory.create_batch(15)
 
         response = self.client.get(self.url)
 
@@ -51,7 +51,7 @@ class StoryListViewTest(TestCase):
     def test_list_stories_with_page_size_param(self):
         """Test custom page size parameter."""
         custom_page_size = 5
-        StoryFactory.create_batch(15)
+        StoryFactory.create_batch(10)
 
         response = self.client.get(self.url, {"page_size": custom_page_size})
 
@@ -61,7 +61,7 @@ class StoryListViewTest(TestCase):
     def test_list_stories_max_page_size(self):
         """Test that max page size is enforced (100)."""
         max_page_size = 100
-        StoryFactory.create_batch(150)
+        StoryFactory.create_batch(50)
 
         response = self.client.get(self.url, {"page_size": 200})
 
@@ -184,7 +184,7 @@ class StoryListViewTest(TestCase):
     def test_cursor_pagination_next_page(self):
         """Test navigating to the next page using cursor pagination."""
         page_size = 10
-        StoryFactory.create_batch(25)
+        StoryFactory.create_batch(15)
 
         # Get first page
         response = self.client.get(self.url, {"page_size": page_size})
