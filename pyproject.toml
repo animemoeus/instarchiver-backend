@@ -7,11 +7,21 @@ python_files = [
     "test_*.py",
 ]
 
-# ==== Coverage ====
 [tool.coverage.run]
-include = ["core/**", "settings/**", "api_logs/**"]
+include = [
+    "core/**",
+    "settings/**",
+    "api_logs/**",
+    "instagram/**",
+    "authentication/**"
+]
 omit = ["*/migrations/*", "*/tests/*"]
 plugins = ["django_coverage_plugin"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+precision = 2
 
 # ==== mypy ====
 [tool.mypy]
