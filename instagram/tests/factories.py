@@ -1,6 +1,9 @@
+from django.utils import timezone
 from factory import Faker
+from factory import SubFactory
 from factory.django import DjangoModelFactory
 
+from instagram.models import Story
 from instagram.models import User as InstagramUser
 
 
@@ -23,3 +26,17 @@ class InstagramUserFactory(DjangoModelFactory):
     class Meta:
         model = InstagramUser
         django_get_or_create = ["username"]
+
+
+class StoryFactory(DjangoModelFactory):
+    """Factory for creating Story instances for testing."""
+
+    story_id = Faker("numerify", text="###################")
+    user = SubFactory(InstagramUserFactory)
+    thumbnail_url = Faker("image_url")
+    media_url = Faker("image_url")
+    story_created_at = Faker("date_time", tzinfo=timezone.get_current_timezone())
+
+    class Meta:
+        model = Story
+        django_get_or_create = ["story_id"]
