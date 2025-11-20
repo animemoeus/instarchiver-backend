@@ -12,6 +12,7 @@ django-stubs[compatible-mypy]==5.2.7  # https://github.com/typeddjango/django-st
 pytest==9.0.0  # https://github.com/pytest-dev/pytest
 pytest-cov==7.0.0  # https://github.com/pytest-dev/pytest-cov
 pytest-sugar==1.1.1  # https://github.com/Teemu/pytest-sugar
+pytest-xdist==3.6.1  # https://github.com/pytest-dev/pytest-xdist
 djangorestframework-stubs==3.16.5  # https://github.com/typeddjango/djangorestframework-stubs
 
 # Documentation
