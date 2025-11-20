@@ -37,3 +37,16 @@ class InstagramUserDetailSerializer(ModelSerializer):
     def get_auto_update_profile_limit_count(self, obj):
         """Return the count of profile update limits (placeholder for now)."""
         return 0
+
+
+class InstagramUserHistoryListSerializer(ModelSerializer):
+    """Serializer for historical Instagram user records."""
+
+    history_id = serializers.IntegerField(read_only=True)
+    history_date = serializers.DateTimeField(read_only=True)
+    history_change_reason = serializers.CharField(read_only=True, allow_null=True)
+    history_type = serializers.CharField(read_only=True)
+
+    class Meta:
+        model = InstagramUser.history.model
+        exclude = ["original_profile_picture_url", "raw_api_data", "history_user"]

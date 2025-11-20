@@ -8,7 +8,9 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import InstagramUserCursorPagination
+from instagram.paginations import InstagramUserHistoryCursorPagination
 from instagram.serializers.users import InstagramUserDetailSerializer
+from instagram.serializers.users import InstagramUserHistoryListSerializer
 from instagram.serializers.users import InstagramUserListSerializer
 
 
@@ -53,3 +55,14 @@ class InstagramUserDetailView(RetrieveAPIView):
                 ),
             )
         )
+
+
+class InstagramUserHistoryView(ListAPIView):
+    serializer_class = InstagramUserHistoryListSerializer
+    pagination_class = InstagramUserHistoryCursorPagination
+    permission_classes = [IsAuthenticatedOrReadOnly]
+    lookup_field = "uuid"
+
+    def get_queryset(self):
+        uuid = self.kwargs.get("uuid")
+        return InstagramUser.history.filter(uuid=uuid).order_by("-history_date")

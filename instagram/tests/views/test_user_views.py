@@ -509,3 +509,333 @@ class InstagramUserDetailViewTest(TestCase):
         assert "updated_at_from_api" in response.data
         assert "api_updated_at" not in response.data
         assert response.data["updated_at_from_api"] is not None
+
+
+class InstagramUserHistoryViewTest(TestCase):
+    """Test suite for InstagramUserHistoryView endpoint."""
+
+    def setUp(self):
+        """Set up test client and common test data."""
+        self.client = APIClient()
+
+    def test_retrieve_user_history_success(self):
+        """Test successful retrieval of user history."""
+        # Create user and make several updates to generate history
+        user = InstagramUserFactory(
+            username="testuser",
+            full_name="Original Name",
+            biography="Original bio",
+        )
+
+        # Make updates to create history records
+        user.full_name = "Updated Name 1"
+        user.save()
+
+        user.biography = "Updated bio"
+        user.save()
+
+        user.full_name = "Updated Name 2"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        # Should have 4 records: initial creation + 3 updates
+        assert len(response.data["results"]) == 4  # noqa: PLR2004
+
+    def test_retrieve_user_history_not_found(self):
+        """Test 404 response when user has no history."""
+        non_existent_uuid = uuid.uuid4()
+        url = reverse("instagram:user_history", kwargs={"uuid": non_existent_uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        assert len(response.data["results"]) == 0
+
+    def test_retrieve_user_history_unauthenticated_allowed(self):
+        """Test that unauthenticated users can access the endpoint."""
+        user = InstagramUserFactory(username="publicuser")
+        user.full_name = "Updated Name"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) >= 1
+
+    def test_history_ordering_by_date_descending(self):
+        """Test that history is ordered by history_date descending (most recent first)."""  # noqa: E501
+        user = InstagramUserFactory(username="testuser", full_name="Original")
+
+        # Make multiple updates
+        user.full_name = "Update 1"
+        user.save()
+
+        user.full_name = "Update 2"
+        user.save()
+
+        user.full_name = "Update 3"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # Most recent change should be first
+        assert results[0]["full_name"] == "Update 3"
+        assert results[1]["full_name"] == "Update 2"
+        assert results[2]["full_name"] == "Update 1"
+        assert results[3]["full_name"] == "Original"
+
+    def test_history_pagination(self):
+        """Test that pagination works correctly with cursor pagination."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create more history records than the default page size (20)
+        for i in range(25):
+            user.full_name = f"Update {i}"
+            user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        assert "next" in response.data
+        assert "previous" in response.data
+        # Should have default page size (20) + initial creation = 21, but capped at 20
+        assert len(response.data["results"]) == 20  # noqa: PLR2004
+
+    def test_history_with_custom_page_size(self):
+        """Test custom page size parameter."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create 15 updates
+        for i in range(15):
+            user.full_name = f"Update {i}"
+            user.save()
+
+        custom_page_size = 5
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url, {"page_size": custom_page_size})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == custom_page_size
+
+    def test_history_max_page_size(self):
+        """Test that max page size is enforced (100)."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create many updates
+        for i in range(110):
+            user.full_name = f"Update {i}"
+            user.save()
+
+        max_page_size = 100
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url, {"page_size": 200})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) <= max_page_size
+
+    def test_history_response_structure(self):
+        """Test that the response contains all expected fields."""
+        user = InstagramUserFactory(username="testuser")
+        user.full_name = "Updated Name"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) > 0
+
+        first_record = results[0]
+        expected_fields = [
+            "uuid",
+            "instagram_id",
+            "username",
+            "full_name",
+            "profile_picture",
+            "biography",
+            "is_private",
+            "is_verified",
+            "media_count",
+            "follower_count",
+            "following_count",
+            "allow_auto_update_stories",
+            "allow_auto_update_profile",
+            "created_at",
+            "updated_at",
+            "api_updated_at",
+            "history_id",
+            "history_date",
+            "history_change_reason",
+            "history_type",
+        ]
+
+        for field in expected_fields:
+            assert field in first_record, f"Field '{field}' missing from response"
+
+    def test_history_excluded_fields(self):
+        """Test that excluded fields are not in the history response."""
+        user = InstagramUserFactory(username="testuser")
+        user.full_name = "Updated Name"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) > 0
+
+        first_record = results[0]
+        excluded_fields = [
+            "original_profile_picture_url",
+            "raw_api_data",
+            "history_user",
+        ]
+
+        for field in excluded_fields:
+            assert field not in first_record, (
+                f"Excluded field '{field}' should not be in response"
+            )
+
+    def test_history_type_field(self):
+        """Test that history_type field correctly identifies the change type."""
+        user = InstagramUserFactory(username="testuser")
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # First record should be creation (+)
+        assert results[-1]["history_type"] == "+"
+
+        # Make an update
+        user.full_name = "Updated Name"
+        user.save()
+
+        response = self.client.get(url)
+        results = response.data["results"]
+
+        # Most recent should be update (~)
+        assert results[0]["history_type"] == "~"
+
+    def test_history_cursor_pagination_next_page(self):
+        """Test navigating to the next page using cursor pagination."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create 25 updates
+        for i in range(25):
+            user.full_name = f"Update {i}"
+            user.save()
+
+        page_size = 10
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+
+        # Get first page
+        response = self.client.get(url, {"page_size": page_size})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == page_size
+        assert response.data["next"] is not None
+
+        # Extract cursor from next URL
+        next_url = response.data["next"]
+        cursor_start = next_url.find("cursor=") + 7
+        cursor_end = next_url.find("&", cursor_start)
+        if cursor_end == -1:
+            cursor = next_url[cursor_start:]
+        else:
+            cursor = next_url[cursor_start:cursor_end]
+
+        # Get second page
+        response = self.client.get(url, {"page_size": page_size, "cursor": cursor})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == page_size
+
+    def test_history_tracks_field_changes(self):
+        """Test that history correctly tracks specific field changes."""
+        user = InstagramUserFactory(
+            username="testuser",
+            full_name="Original Name",
+            follower_count=100,
+        )
+
+        # Update follower count
+        user.follower_count = 200
+        user.save()
+
+        # Update full name
+        user.full_name = "New Name"
+        user.save()
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # Most recent should have new values
+        assert results[0]["full_name"] == "New Name"
+        assert results[0]["follower_count"] == 200  # noqa: PLR2004
+
+        # Second record should have old name, new follower count
+        assert results[1]["full_name"] == "Original Name"
+        assert results[1]["follower_count"] == 200  # noqa: PLR2004
+
+        # Oldest record should have original values
+        assert results[2]["full_name"] == "Original Name"
+        assert results[2]["follower_count"] == 100  # noqa: PLR2004
+
+    def test_history_empty_for_new_user(self):
+        """Test that a newly created user has one history record (creation)."""
+        user = InstagramUserFactory(username="newuser")
+
+        url = reverse("instagram:user_history", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 1
+        assert results[0]["history_type"] == "+"
+
+    def test_history_multiple_users_isolation(self):
+        """Test that history for one user doesn't include another user's history."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+
+        # Update both users
+        user1.full_name = "User 1 Updated"
+        user1.save()
+
+        user2.full_name = "User 2 Updated"
+        user2.save()
+
+        # Get history for user1
+        url1 = reverse("instagram:user_history", kwargs={"uuid": user1.uuid})
+        response1 = self.client.get(url1)
+
+        # Get history for user2
+        url2 = reverse("instagram:user_history", kwargs={"uuid": user2.uuid})
+        response2 = self.client.get(url2)
+
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+
+        # Each should have their own history
+        results1 = response1.data["results"]
+        results2 = response2.data["results"]
+
+        assert all(r["username"] == "user1" for r in results1)
+        assert all(r["username"] == "user2" for r in results2)
