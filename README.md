@@ -4,6 +4,9 @@ A Django REST API backend for archiving Instagram content and managing user data
 
 [![codecov](https://codecov.io/github/instarchiver/instarchiver-backend/graph/badge.svg?token=qLvch7qoAF)](https://codecov.io/github/instarchiver/instarchiver-backend)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
+![Uptime Robot status](https://img.shields.io/uptimerobot/status/m801829955-01095d331ccf91d3ab2297bc)
+![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m801829955-01095d331ccf91d3ab2297bc)
+
 
 License: MIT
 
@@ -13,12 +16,15 @@ Instarchiver is a backend service that provides APIs for archiving Instagram con
 
 ## Features
 
-- User authentication and management
-- RESTful API endpoints
-- Admin interface
-- Celery task queue for background processing
-- API documentation with Swagger/OpenAPI
-- Docker deployment support
+- **Instagram User Management**: Archive and track Instagram user profiles with historical data
+- **User History Tracking**: Automatic versioning of user profile changes
+- **RESTful API**: Comprehensive endpoints with filtering, search, and pagination
+- **Caching**: Redis-based caching for improved performance
+- **Authentication**: JWT-based user authentication and management
+- **Background Processing**: Celery task queue for async operations
+- **API Documentation**: Interactive Swagger/OpenAPI documentation
+- **Docker Support**: Full containerization for development and production
+- **Code Coverage**: Automated testing with coverage reporting via Codecov
 
 ## Technology Stack
 
@@ -37,9 +43,32 @@ Instarchiver is a backend service that provides APIs for archiving Instagram con
 - Python 3.12+
 - PostgreSQL
 - Redis
-- Docker (optional)
+- Docker & Docker Compose (recommended)
+- Just (optional, for task automation)
 
-### Local Development Setup
+### Docker Development (Recommended)
+
+The easiest way to get started is using Docker Compose with Just commands:
+
+```bash
+# Install Just (optional but recommended)
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash
+
+# Build and start all services
+just up
+
+# Or without Just
+docker compose -f docker-compose.local.yml up
+```
+
+Services will be available at:
+- **Django app**: http://localhost:8000
+- **API Documentation**: http://localhost:8000/api/docs/
+- **Admin Interface**: http://localhost:8000/admin/
+- **Mailpit** (email testing): http://localhost:8025
+- **Flower** (Celery monitoring): http://localhost:5555
+
+### Local Development Setup (Without Docker)
 
 1. Clone the repository:
    ```bash
@@ -80,43 +109,97 @@ Instarchiver is a backend service that provides APIs for archiving Instagram con
    python manage.py runserver
    ```
 
-## API Documentation
+## API Endpoints
+
+### Instagram API
+
+- **List Users**: `GET /api/instagram/users/`
+  - Supports search, filtering, and cursor pagination
+  - Search fields: username, full_name, biography
+  - Ordering: created_at, updated_at, username, full_name
+
+- **User Detail**: `GET /api/instagram/users/<uuid>/`
+  - Cached for 30 seconds for improved performance
+  - Includes user stories and history status
+
+- **Process Instagram Data**: `POST /api/instagram/inject-data/`
+  - Endpoint for importing Instagram data
+
+### API Documentation
 
 Once the server is running, you can access:
-- **API Documentation**: `http://localhost:8000/api/docs/`
-- **API Schema**: `http://localhost:8000/api/schema/`
-- **Admin Interface**: `http://localhost:8000/admin/`
+- **Interactive API Docs**: http://localhost:8000/api/docs/
+- **API Schema**: http://localhost:8000/api/schema/
+- **Admin Interface**: http://localhost:8000/admin/
 
-## Basic Commands
+## Development Workflow
 
-### User Management
+### Using Just Commands
 
-- **Create superuser**: `python manage.py createsuperuser`
-- **User registration**: Available through API endpoints or admin interface
+The project includes a `justfile` for common tasks:
 
-### Development Commands
-
-**Type checking**:
 ```bash
-mypy core
+# List all available commands
+just
+
+# Build Docker images
+just build
+
+# Start containers
+just up
+
+# Stop containers
+just down
+
+# Remove containers and volumes
+just prune
+
+# View logs (optionally specify service)
+just logs
+just logs django
+
+# Run Django management commands
+just manage migrate
+just manage createsuperuser
+just manage shell
+
+# Execute commands in Django container
+just django python manage.py test
+just django bash
 ```
 
-**Run tests**:
-```bash
-pytest
-```
+### Testing & Quality
 
-**Test coverage**:
+**Run tests with coverage**:
 ```bash
-coverage run -m pytest
+# With Docker
+just django pytest --cov --cov-branch
+
+# Without Docker
+pytest --cov --cov-branch
 coverage html
 open htmlcov/index.html
 ```
 
-**Code formatting**:
+**Code formatting and linting**:
 ```bash
+# Format code
 ruff format
+
+# Check and fix linting issues
 ruff check --fix
+
+# Type checking
+mypy core
+```
+
+**Pre-commit hooks**:
+```bash
+# Install pre-commit hooks
+pre-commit install
+
+# Run manually
+pre-commit run --all-files
 ```
 
 ### Background Tasks with Celery
@@ -141,28 +224,35 @@ Monitor tasks with Flower:
 celery -A config.celery_app flower
 ```
 
-## Docker Development
+## Docker Commands
 
-Use Docker Compose for local development:
+### Manual Docker Compose Commands
+
+If not using Just, you can use Docker Compose directly:
 
 ```bash
 # Build and start all services
-docker-compose -f docker-compose.local.yml up --build
+docker compose -f docker-compose.local.yml up --build
 
 # Run in background
-docker-compose -f docker-compose.local.yml up -d
+docker compose -f docker-compose.local.yml up -d
 
 # View logs
-docker-compose -f docker-compose.local.yml logs -f
+docker compose -f docker-compose.local.yml logs -f django
+
+# Run Django commands
+docker compose -f docker-compose.local.yml run --rm django python manage.py migrate
+docker compose -f docker-compose.local.yml run --rm django python manage.py createsuperuser
+
+# Run tests
+docker compose -f docker-compose.local.yml run --rm django pytest
 
 # Stop services
-docker-compose -f docker-compose.local.yml down
-```
+docker compose -f docker-compose.local.yml down
 
-### Services Available:
-- **Django app**: `http://localhost:8000`
-- **Mailpit** (email testing): `http://localhost:8025`
-- **Flower** (Celery monitoring): `http://localhost:5555`
+# Remove volumes
+docker compose -f docker-compose.local.yml down -v
+```
 
 ## Configuration
 
