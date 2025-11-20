@@ -243,3 +243,156 @@ class StoryListViewTest(TestCase):
         for story in results:
             assert story["user"]["username"] == "multiuser"
             assert story["user"]["uuid"] == str(user.uuid)
+
+
+class StoryDetailViewTest(TestCase):
+    """Test suite for StoryDetailView endpoint."""
+
+    def setUp(self):
+        """Set up test client and common test data."""
+        self.client = APIClient()
+
+    def test_retrieve_story_success(self):
+        """Test successful retrieval of a single story."""
+        user = InstagramUserFactory(username="testuser")
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["story_id"] == story.story_id
+
+    def test_retrieve_story_not_found(self):
+        """Test retrieving a non-existent story returns 404."""
+        url = reverse(
+            "instagram:story_detail",
+            kwargs={"story_id": "9999999999999999999"},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+    def test_retrieve_story_unauthenticated_allowed(self):
+        """Test unauthenticated access (IsAuthenticatedOrReadOnly)."""
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_response_structure(self):
+        """Test that the response contains expected fields."""
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        expected_fields = [
+            "story_id",
+            "user",
+            "thumbnail",
+            "media",
+            "created_at",
+            "story_created_at",
+        ]
+
+        for field in expected_fields:
+            assert field in response.data, f"Field '{field}' missing from response"
+
+    def test_nested_user_detail_structure(self):
+        """Test that nested user object contains detailed fields."""
+        user = InstagramUserFactory(username="detailuser")
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        user_data = response.data["user"]
+
+        expected_user_fields = [
+            "uuid",
+            "instagram_id",
+            "username",
+            "full_name",
+            "profile_picture",
+            "biography",
+            "is_private",
+            "is_verified",
+            "media_count",
+            "follower_count",
+            "following_count",
+            "allow_auto_update_stories",
+            "allow_auto_update_profile",
+            "auto_update_stories_limit_count",
+            "auto_update_profile_limit_count",
+            "created_at",
+            "updated_at",
+            "updated_at_from_api",
+            "has_stories",
+            "has_history",
+        ]
+
+        for field in expected_user_fields:
+            assert field in user_data, f"Field '{field}' missing from user data"
+
+    def test_user_has_stories_annotation(self):
+        """Test that user's has_stories annotation is correct."""
+        user = InstagramUserFactory(username="storyuser")
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["user"]["has_stories"] is True
+
+    def test_user_has_history_annotation(self):
+        """Test that user's has_history annotation is correct."""
+        user = InstagramUserFactory(username="historyuser", full_name="Original Name")
+        user.full_name = "Updated Name"
+        user.save()
+
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["user"]["has_history"] is True
+
+    def test_user_without_history(self):
+        """Test that user without history has has_history as False."""
+        user = InstagramUserFactory(username="nohistoryuser")
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["user"]["has_history"] is False
+
+    def test_story_id_field_matches(self):
+        """Test that story_id in response matches the requested story."""
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["story_id"] == story.story_id
+
+    def test_user_uuid_field_matches(self):
+        """Test that user UUID in response matches the story's user."""
+        user = InstagramUserFactory()
+        story = StoryFactory(user=user)
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert response.data["user"]["uuid"] == str(user.uuid)
