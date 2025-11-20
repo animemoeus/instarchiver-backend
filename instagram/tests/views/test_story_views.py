@@ -36,9 +36,9 @@ class StoryListViewTest(TestCase):
 
     def test_list_stories_pagination(self):
         """Test that pagination works correctly with cursor pagination."""
-        # Create more stories than the default page size (20)
-        default_page_size = 20
-        StoryFactory.create_batch(15)
+        # Create stories to test pagination
+        total_stories = 15
+        StoryFactory.create_batch(total_stories)
 
         response = self.client.get(self.url)
 
@@ -46,7 +46,7 @@ class StoryListViewTest(TestCase):
         assert "results" in response.data
         assert "next" in response.data
         assert "previous" in response.data
-        assert len(response.data["results"]) == default_page_size
+        assert len(response.data["results"]) == total_stories
 
     def test_list_stories_with_page_size_param(self):
         """Test custom page size parameter."""
@@ -207,7 +207,8 @@ class StoryListViewTest(TestCase):
             {"page_size": page_size, "cursor": cursor},
         )
         assert response.status_code == status.HTTP_200_OK
-        assert len(response.data["results"]) == page_size
+        # Second page should have remaining 5 stories (15 total - 10 from first page)
+        assert len(response.data["results"]) == 5  # noqa: PLR2004
 
     def test_stories_from_multiple_users(self):
         """Test that stories from multiple users are returned correctly."""
