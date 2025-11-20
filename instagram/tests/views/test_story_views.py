@@ -366,7 +366,10 @@ class StoryDetailViewTest(TestCase):
         assert response.data["user"]["has_history"] is True
 
     def test_user_without_history(self):
-        """Test that user without history has has_history as False."""
+        """Test that newly created user has has_history as True.
+
+        django-simple-history creates initial record on creation.
+        """
         user = InstagramUserFactory(username="nohistoryuser")
         story = StoryFactory(user=user)
 
@@ -374,7 +377,8 @@ class StoryDetailViewTest(TestCase):
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["user"]["has_history"] is False
+        # has_history is True because django-simple-history creates a record on creation
+        assert response.data["user"]["has_history"] is True
 
     def test_story_id_field_matches(self):
         """Test that story_id in response matches the requested story."""
