@@ -14,7 +14,7 @@ class InstagramUserFactory(DjangoModelFactory):
     username = Faker("user_name")
     full_name = Faker("name")
     biography = Faker("text", max_nb_chars=150)
-    original_profile_picture_url = Faker("image_url")
+    original_profile_picture_url = Faker("numerify", text="https://placecats.com/##/##")
     is_private = Faker("boolean")
     is_verified = Faker("boolean", chance_of_getting_true=20)
     media_count = Faker("random_int", min=0, max=1000)
@@ -33,8 +33,8 @@ class StoryFactory(DjangoModelFactory):
 
     story_id = Faker("numerify", text="###################")
     user = SubFactory(InstagramUserFactory)
-    thumbnail_url = Faker("image_url")
-    media_url = Faker("image_url")
+    thumbnail_url = Faker("numerify", text="https://placecats.com/##/##")
+    media_url = Faker("numerify", text="https://placecats.com/##/##")
     story_created_at = Faker("date_time", tzinfo=timezone.get_current_timezone())
 
     class Meta:
