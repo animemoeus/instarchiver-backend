@@ -167,6 +167,33 @@ class StoryAdmin(ModelAdmin):
     ]
     readonly_fields = [
         "story_id",
+        "user",
         "created_at",
+        "story_created_at",
+        "raw_api_data",
     ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    ("story_id", "user"),
+                    "story_created_at",
+                    "thumbnail",
+                    "media",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "raw_api_data",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+    )
     ordering = ["-created_at"]
