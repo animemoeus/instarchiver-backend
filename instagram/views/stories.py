@@ -1,6 +1,7 @@
 from django.db.models import Exists
 from django.db.models import OuterRef
 from django.db.models import Prefetch
+from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters
 from rest_framework.generics import ListAPIView
 from rest_framework.generics import RetrieveAPIView
@@ -19,8 +20,9 @@ class StoryListView(ListAPIView):
     pagination_class = StoryCursorPagination
     permission_classes = [IsAuthenticatedOrReadOnly]
 
-    filter_backends = [filters.SearchFilter]
+    filter_backends = [filters.SearchFilter, DjangoFilterBackend]
     search_fields = ["user__username", "user__full_name", "user__biography"]
+    filterset_fields = ["user"]
 
     def get_queryset(self):
         # Annotate users with has_stories and has_history
