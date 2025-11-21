@@ -43,6 +43,8 @@ class InstagramUserDetailView(RetrieveAPIView):
     serializer_class = InstagramUserDetailSerializer
     permission_classes = [IsAuthenticatedOrReadOnly]
     lookup_field = "uuid"
+    filter_backends = [filters.SearchFilter]
+    search_fields = ["full_name", "username", "biography"]
 
     def get_queryset(self):
         return (

@@ -96,6 +96,7 @@ THIRD_PARTY_APPS = [
     "rest_framework.authtoken",
     "corsheaders",
     "drf_spectacular",
+    "django_filters",
     "simple_history",
     "solo",
 ]

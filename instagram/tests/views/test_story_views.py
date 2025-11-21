@@ -245,6 +245,198 @@ class StoryListViewTest(TestCase):
             assert story["user"]["username"] == "multiuser"
             assert story["user"]["uuid"] == str(user.uuid)
 
+    def test_search_by_username(self):
+        """Test searching stories by user's username."""
+        user1 = InstagramUserFactory(username="johndoe")
+        user2 = InstagramUserFactory(username="janedoe")
+        user3 = InstagramUserFactory(username="alice")
+
+        StoryFactory.create_batch(2, user=user1)
+        StoryFactory.create_batch(2, user=user2)
+        StoryFactory.create_batch(1, user=user3)
+
+        response = self.client.get(self.url, {"search": "doe"})
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 4  # noqa: PLR2004
+
+        # All results should be from users with "doe" in username
+        usernames = {story["user"]["username"] for story in results}
+        assert usernames == {"johndoe", "janedoe"}
+
+    def test_search_by_full_name(self):
+        """Test searching stories by user's full name."""
+        user1 = InstagramUserFactory(username="user1", full_name="John Smith")
+        user2 = InstagramUserFactory(username="user2", full_name="Jane Smith")
+        user3 = InstagramUserFactory(username="user3", full_name="Bob Johnson")
+
+        StoryFactory.create_batch(2, user=user1)
+        StoryFactory.create_batch(2, user=user2)
+        StoryFactory.create_batch(1, user=user3)
+
+        response = self.client.get(self.url, {"search": "Smith"})
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 4  # noqa: PLR2004
+
+        # All results should be from users with "Smith" in full_name
+        full_names = {story["user"]["full_name"] for story in results}
+        assert full_names == {"John Smith", "Jane Smith"}
+
+    def test_search_by_biography(self):
+        """Test searching stories by user's biography."""
+        user1 = InstagramUserFactory(
+            username="user1",
+            biography="I love photography and travel",
+        )
+        user2 = InstagramUserFactory(
+            username="user2",
+            biography="Photography enthusiast",
+        )
+        user3 = InstagramUserFactory(username="user3", biography="Food blogger")
+
+        StoryFactory.create_batch(2, user=user1)
+        StoryFactory.create_batch(2, user=user2)
+        StoryFactory.create_batch(1, user=user3)
+
+        response = self.client.get(self.url, {"search": "photography"})
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 4  # noqa: PLR2004
+
+        # All results should be from users with "photography" in biography
+        usernames = {story["user"]["username"] for story in results}
+        assert usernames == {"user1", "user2"}
+
+    def test_search_case_insensitive(self):
+        """Test that search is case-insensitive."""
+        user = InstagramUserFactory(username="TestUser", full_name="Test User")
+        StoryFactory.create_batch(2, user=user)
+
+        # Test with lowercase
+        response = self.client.get(self.url, {"search": "testuser"})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 2  # noqa: PLR2004
+
+        # Test with uppercase
+        response = self.client.get(self.url, {"search": "TESTUSER"})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 2  # noqa: PLR2004
+
+    def test_search_no_results(self):
+        """Test search with no matching results."""
+        user = InstagramUserFactory(username="testuser")
+        StoryFactory.create_batch(2, user=user)
+
+        response = self.client.get(self.url, {"search": "nonexistent"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 0
+
+    def test_search_partial_match(self):
+        """Test that search works with partial matches."""
+        user = InstagramUserFactory(username="photography_lover")
+        StoryFactory.create_batch(2, user=user)
+
+        response = self.client.get(self.url, {"search": "photo"})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 2  # noqa: PLR2004
+
+    def test_filter_by_user(self):
+        """Test filtering stories by specific user."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+
+        StoryFactory.create_batch(3, user=user1)
+        StoryFactory.create_batch(2, user=user2)
+
+        response = self.client.get(self.url, {"user": str(user1.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 3  # noqa: PLR2004
+
+        # All results should be from user1
+        for story in results:
+            assert story["user"]["uuid"] == str(user1.uuid)
+            assert story["user"]["username"] == "user1"
+
+    def test_filter_by_user_no_stories(self):
+        """Test filtering by user who has no stories."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+
+        StoryFactory.create_batch(3, user=user1)
+
+        response = self.client.get(self.url, {"user": str(user2.uuid)})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 0
+
+    def test_filter_by_invalid_user_uuid(self):
+        """Test filtering with invalid user UUID."""
+        StoryFactory.create_batch(2)
+
+        response = self.client.get(self.url, {"user": "invalid-uuid"})
+
+        # Should return 400 or empty results depending on DjangoFilterBackend config
+        # Typically returns empty results for invalid UUID
+        assert response.status_code in [status.HTTP_200_OK, status.HTTP_400_BAD_REQUEST]
+
+    def test_combined_search_and_filter(self):
+        """Test using search and filter together."""
+        user1 = InstagramUserFactory(username="johndoe", full_name="John Doe")
+        user2 = InstagramUserFactory(username="janedoe", full_name="Jane Doe")
+        user3 = InstagramUserFactory(username="bobsmith", full_name="Bob Smith")
+
+        StoryFactory.create_batch(2, user=user1)
+        StoryFactory.create_batch(2, user=user2)
+        StoryFactory.create_batch(1, user=user3)
+
+        # Search for "doe" and filter by user1
+        response = self.client.get(
+            self.url,
+            {"search": "doe", "user": str(user1.uuid)},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 2  # noqa: PLR2004
+
+        # All results should be from user1 and match "doe"
+        for story in results:
+            assert story["user"]["uuid"] == str(user1.uuid)
+            assert "doe" in story["user"]["username"].lower()
+
+    def test_search_with_pagination(self):
+        """Test search functionality works with pagination."""
+        user = InstagramUserFactory(username="searchuser")
+        StoryFactory.create_batch(15, user=user)
+
+        response = self.client.get(self.url, {"search": "searchuser", "page_size": 10})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 10  # noqa: PLR2004
+        assert response.data["next"] is not None
+
+    def test_filter_with_pagination(self):
+        """Test filter functionality works with pagination."""
+        user = InstagramUserFactory(username="filteruser")
+        StoryFactory.create_batch(15, user=user)
+
+        response = self.client.get(
+            self.url,
+            {"user": str(user.uuid), "page_size": 10},
+        )
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 10  # noqa: PLR2004
+        assert response.data["next"] is not None
+
 
 class StoryDetailViewTest(TestCase):
     """Test suite for StoryDetailView endpoint."""
