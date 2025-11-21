@@ -4,8 +4,8 @@ A Django REST API backend for archiving Instagram content and managing user data
 
 [![codecov](https://codecov.io/github/instarchiver/instarchiver-backend/graph/badge.svg?token=qLvch7qoAF)](https://codecov.io/github/instarchiver/instarchiver-backend)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
-![Uptime Robot status](https://img.shields.io/uptimerobot/status/m801829955-01095d331ccf91d3ab2297bc)
-![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m801829955-01095d331ccf91d3ab2297bc)
+[![Uptime Robot status](https://img.shields.io/uptimerobot/status/m801829955-01095d331ccf91d3ab2297bc)](https://stats.uptimerobot.com/GKy6liBGw7/801829955)
+[![Uptime Robot ratio (7 days)](https://img.shields.io/uptimerobot/ratio/7/m801829955-01095d331ccf91d3ab2297bc)](https://stats.uptimerobot.com/GKy6liBGw7/801829955)
 
 
 License: MIT
