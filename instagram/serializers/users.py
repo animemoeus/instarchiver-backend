@@ -46,7 +46,14 @@ class InstagramUserHistoryListSerializer(ModelSerializer):
     history_date = serializers.DateTimeField(read_only=True)
     history_change_reason = serializers.CharField(read_only=True, allow_null=True)
     history_type = serializers.CharField(read_only=True)
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = InstagramUser.history.model
         exclude = ["original_profile_picture_url", "raw_api_data", "history_user"]
+
+    def get_profile_picture(self, obj):
+        """Return the full URL for the profile picture if it exists."""
+        if obj.profile_picture:
+            return obj.profile_picture.url
+        return None
