@@ -38,6 +38,13 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
     search_fields = ["username", "full_name", "instagram_id"]
     readonly_fields = [
         "uuid",
+        "instagram_id",
+        "full_name",
+        "biography",
+        "media_count",
+        "follower_count",
+        "following_count",
+        "profile_picture",
         "created_at",
         "updated_at",
         "api_updated_at",
@@ -48,19 +55,15 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
             "General",
             {
                 "fields": (
-                    "username",
-                    "instagram_id",
-                    "full_name",
-                    "biography",
+                    ("username", "instagram_id"),
+                    (
+                        "full_name",
+                        "biography",
+                    ),
                     "profile_picture",
-                    "original_profile_picture_url",
-                    "is_private",
-                    "is_verified",
-                    "media_count",
-                    "follower_count",
-                    "following_count",
-                    "allow_auto_update_stories",
-                    "allow_auto_update_profile",
+                    ("is_private", "is_verified"),
+                    ("allow_auto_update_stories", "allow_auto_update_profile"),
+                    ("media_count", "follower_count", "following_count"),
                 ),
                 "classes": ["tab"],
             },
@@ -142,6 +145,9 @@ class UserUpdateStoryLogAdmin(ModelAdmin):
     ]
     search_fields = ["user__username"]
     readonly_fields = [
+        "user",
+        "status",
+        "message",
         "created_at",
         "updated_at",
     ]
@@ -167,6 +173,33 @@ class StoryAdmin(ModelAdmin):
     ]
     readonly_fields = [
         "story_id",
+        "user",
         "created_at",
+        "story_created_at",
+        "raw_api_data",
     ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    ("story_id", "user"),
+                    "story_created_at",
+                    "thumbnail",
+                    "media",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "raw_api_data",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+    )
     ordering = ["-created_at"]
