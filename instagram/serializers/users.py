@@ -1,3 +1,4 @@
+from django.core.files.storage import default_storage
 from rest_framework import serializers
 from rest_framework.serializers import ModelSerializer
 
@@ -53,7 +54,13 @@ class InstagramUserHistoryListSerializer(ModelSerializer):
         exclude = ["original_profile_picture_url", "raw_api_data", "history_user"]
 
     def get_profile_picture(self, obj):
-        """Return the full URL for the profile picture if it exists."""
+        """Return the full URL for the profile picture if it exists.
+
+        Note: django-simple-history stores file fields as strings (file paths),
+        not as FieldFile objects, so we need to use the storage backend to
+        construct the full URL.
+        """
         if obj.profile_picture:
-            return obj.profile_picture.url
+            # Historical records store the file path as a string
+            return default_storage.url(obj.profile_picture)
         return None
