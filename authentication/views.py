@@ -13,6 +13,7 @@ from authentication import firebase
 
 from .serializers import LoginWithGoogleSerializer
 from .serializers import RefreshTokenSerializer
+from .serializers import UserSerializer
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
@@ -138,3 +139,27 @@ class LoginWithGoogleView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class GetMeView(APIView):
+    serializer_class = UserSerializer
+
+    @extend_schema(
+        summary="Get current user information",
+        description="Returns the authenticated user's information.",
+        responses={
+            200: UserSerializer,
+            401: OpenApiResponse(
+                description="Unauthorized - Invalid or missing authentication token",
+            ),
+        },
+    )
+    def get(self, request):
+        if not request.user.is_authenticated:
+            return Response(
+                {"error": "Authentication required"},
+                status=status.HTTP_401_UNAUTHORIZED,
+            )
+
+        serializer = self.serializer_class(request.user)
+        return Response(serializer.data, status=status.HTTP_200_OK)
