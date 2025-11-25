@@ -99,4 +99,4 @@ class FirebaseAdminSettingAdmin(SingletonModelAdmin, ModelAdmin):
             },
         ),
     )
-    readonly_fields = ("created_at", "updated_at")
+    readonly_fields = ("service_account_json", "created_at", "updated_at")
