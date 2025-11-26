@@ -41,21 +41,13 @@ class InstagramUserDetailSerializer(ModelSerializer):
         source="api_updated_at",
         read_only=True,
     )
-    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = InstagramUser
-        exclude = ["original_profile_picture_url", "raw_api_data"]
+        exclude = ["raw_api_data"]
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }
-
-    def get_profile_picture(self, obj):
-        return (
-            default_storage.url(obj.profile_picture)
-            if obj.profile_picture
-            else obj.original_profile_picture_url
-        )
 
     def get_auto_update_stories_limit_count(self, obj):
         """Return the count of story update limits (placeholder for now)."""
