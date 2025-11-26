@@ -56,6 +56,14 @@ class User(models.Model):
     def __str__(self):
         return self.username
 
+    def delete(self, *args, **kwargs):
+        """Delete the user instance and clean up all historical records."""
+        # Delete all historical records for this user
+        self.history.all().delete()
+
+        # Call the parent delete method
+        return super().delete(*args, **kwargs)
+
     def _extract_api_data_from_username_v2(self, data):
         """Extract API response data from fetch_user_info_by_username_v2."""
         if not data:

@@ -1,6 +1,10 @@
+from datetime import timedelta
+
 from django.db import transaction
 from django.db.models import Exists
 from django.db.models import OuterRef
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters
 from rest_framework import status
 from rest_framework.generics import ListAPIView
@@ -49,6 +53,35 @@ class InstagramUserListCreateView(ListCreateAPIView):
         )
 
     def create(self, request, *args, **kwargs):
+        # Check rate limit: max 3 users created in last 24 hours
+        time_threshold = timezone.localdate() - timedelta(days=1)
+        max_creations_per_day = 3
+
+        # Count Instagram users created by this user in the last 24 hours
+        # Only count creation events for users that still exist (not deleted)
+        # Get UUIDs of users created in the last 24 hours
+        created_user_uuids = InstagramUser.history.filter(
+            Q(history_user=request.user)
+            & Q(history_date__gte=time_threshold)
+            & Q(history_type="+"),  # "+" indicates creation
+        ).values_list("uuid", flat=True)
+
+        # Filter to only include UUIDs that still exist in the current table
+        recent_creations = InstagramUser.objects.filter(
+            uuid__in=created_user_uuids,
+        ).count()
+
+        if recent_creations >= max_creations_per_day:
+            return Response(
+                {
+                    "detail": (
+                        f"You have reached the limit of {max_creations_per_day} user creations "  # noqa: E501
+                        "in the last 24 hours. Please try again later."
+                    ),
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
