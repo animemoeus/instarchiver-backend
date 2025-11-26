@@ -129,6 +129,18 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Payments",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Payments",
+                        "icon": "payment",
+                        "link": "/admin/payments/payment/",
+                    },
+                ],
+            },
+            {
                 "title": "API Monitoring",
                 "separator": True,
                 "collapsible": True,
