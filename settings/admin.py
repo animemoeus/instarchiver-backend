@@ -12,6 +12,7 @@ from core.utils import openai
 from .models import CoreAPISetting
 from .models import FirebaseAdminSetting
 from .models import OpenAISetting
+from .models import StripeSetting
 
 
 @admin.register(OpenAISetting)
@@ -100,3 +101,23 @@ class FirebaseAdminSettingAdmin(SingletonModelAdmin, ModelAdmin):
         ),
     )
     readonly_fields = ("service_account_json", "created_at", "updated_at")
+
+
+@admin.register(StripeSetting)
+class StripeAdminSetting(SingletonModelAdmin, ModelAdmin):
+    fieldsets = (
+        (
+            "Stripe Configuration",
+            {
+                "fields": ("api_key", "webhook_secret"),
+                "description": "Configure Stripe API settings",
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+            },
+        ),
+    )
+    readonly_fields = ("created_at", "updated_at")

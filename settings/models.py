@@ -105,3 +105,27 @@ class FirebaseAdminSetting(SingletonModel):
 
     class Meta:
         verbose_name = "Firebase Admin Setting"
+
+
+class StripeSetting(SingletonModel):
+    api_key = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        help_text="Stripe API Key",
+    )
+    webhook_secret = models.CharField(
+        max_length=255,
+        default="",
+        blank=True,
+        help_text="Stripe Webhook Secret",
+    )
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return "Stripe Settings"
+
+    class Meta:
+        verbose_name = "Stripe Setting"

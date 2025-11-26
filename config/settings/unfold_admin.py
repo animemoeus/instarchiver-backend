@@ -160,6 +160,11 @@ UNFOLD = {
                         "icon": "cloud",
                         "link": "/admin/settings/firebaseadminsetting/",
                     },
+                    {
+                        "title": "Stripe Settings",
+                        "icon": "credit_card",
+                        "link": "/admin/settings/stripesetting/",
+                    },
                 ],
             },
         ],
