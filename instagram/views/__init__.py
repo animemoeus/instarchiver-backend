@@ -3,12 +3,12 @@ from .stories import StoryDetailView
 from .stories import StoryListView
 from .users import InstagramUserDetailView
 from .users import InstagramUserHistoryView
-from .users import InstagramUserListView
+from .users import InstagramUserListCreateView
 
 __all__ = [
     "InstagramUserDetailView",
     "InstagramUserHistoryView",
-    "InstagramUserListView",
+    "InstagramUserListCreateView",
     "ProcessInstagramDataView",
     "StoryDetailView",
     "StoryListView",

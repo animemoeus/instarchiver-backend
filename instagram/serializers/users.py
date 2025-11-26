@@ -5,6 +5,24 @@ from rest_framework.serializers import ModelSerializer
 from instagram.models import User as InstagramUser
 
 
+class InstagramUserCreateSerializer(serializers.Serializer):
+    """Serializer for creating Instagram users with username only."""
+
+    username = serializers.CharField()
+
+    def validate_username(self, value):
+        if InstagramUser.objects.filter(username=value).exists():
+            msg = "User with this username already exists."
+            raise serializers.ValidationError(msg)
+        return value
+
+    def create(self, validated_data):
+        username = validated_data["username"]
+        instagram_user = InstagramUser.objects.create(username=username)
+        instagram_user.update_profile_from_api()
+        return instagram_user
+
+
 class InstagramUserListSerializer(ModelSerializer):
     has_stories = serializers.BooleanField(read_only=True)
     has_history = serializers.BooleanField(read_only=True)
@@ -26,7 +44,7 @@ class InstagramUserDetailSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser
-        exclude = ["original_profile_picture_url", "raw_api_data"]
+        exclude = ["raw_api_data"]
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }

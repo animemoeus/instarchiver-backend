@@ -431,7 +431,7 @@ class InstagramUserDetailViewTest(TestCase):
 
         assert response.status_code == status.HTTP_200_OK
 
-        excluded_fields = ["original_profile_picture_url", "raw_api_data"]
+        excluded_fields = ["raw_api_data"]
 
         for field in excluded_fields:
             assert field not in response.data, (

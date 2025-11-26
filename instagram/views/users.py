@@ -1,20 +1,29 @@
+from datetime import timedelta
+
+from django.db import transaction
 from django.db.models import Exists
 from django.db.models import OuterRef
+from django.db.models import Q
+from django.utils import timezone
 from rest_framework import filters
+from rest_framework import status
 from rest_framework.generics import ListAPIView
+from rest_framework.generics import ListCreateAPIView
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
 
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import InstagramUserCursorPagination
 from instagram.paginations import InstagramUserHistoryCursorPagination
+from instagram.serializers.users import InstagramUserCreateSerializer
 from instagram.serializers.users import InstagramUserDetailSerializer
 from instagram.serializers.users import InstagramUserHistoryListSerializer
 from instagram.serializers.users import InstagramUserListSerializer
 
 
-class InstagramUserListView(ListAPIView):
+class InstagramUserListCreateView(ListCreateAPIView):
     queryset = InstagramUser.objects.all().order_by("-created_at")
     serializer_class = InstagramUserListSerializer
     pagination_class = InstagramUserCursorPagination
@@ -24,6 +33,12 @@ class InstagramUserListView(ListAPIView):
     search_fields = ["username", "full_name", "biography"]
     ordering_fields = ["created_at", "updated_at", "username", "full_name"]
     ordering = ["-created_at"]
+
+    def get_serializer_class(self):
+        """Use different serializers for list and create actions."""
+        if self.request.method == "POST":
+            return InstagramUserCreateSerializer
+        return InstagramUserListSerializer
 
     def get_queryset(self):
         return (
@@ -36,6 +51,49 @@ class InstagramUserListView(ListAPIView):
                 ),
             )
         )
+
+    def create(self, request, *args, **kwargs):
+        # Check rate limit: max 3 users created in last 24 hours
+        time_threshold = timezone.localdate() - timedelta(days=1)
+        max_creations_per_day = 3
+
+        # Count Instagram users created by this user in the last 24 hours
+        # Only count creation events for users that still exist (not deleted)
+        # Get UUIDs of users created in the last 24 hours
+        created_user_uuids = InstagramUser.history.filter(
+            Q(history_user=request.user)
+            & Q(history_date__gte=time_threshold)
+            & Q(history_type="+"),  # "+" indicates creation
+        ).values_list("uuid", flat=True)
+
+        # Filter to only include UUIDs that still exist in the current table
+        recent_creations = InstagramUser.objects.filter(
+            uuid__in=created_user_uuids,
+        ).count()
+
+        if recent_creations >= max_creations_per_day:
+            return Response(
+                {
+                    "detail": (
+                        f"You have reached the limit of {max_creations_per_day} user creations "  # noqa: E501
+                        "in the last 24 hours. Please try again later."
+                    ),
+                },
+                status=status.HTTP_429_TOO_MANY_REQUESTS,
+            )
+
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        try:
+            with transaction.atomic():
+                serializer.save()
+        except Exception as e:  # noqa: BLE001
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+
+        # Use user detail serializer to return the created user
+        serializer = InstagramUserDetailSerializer(serializer.instance)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
 class InstagramUserDetailView(RetrieveAPIView):
