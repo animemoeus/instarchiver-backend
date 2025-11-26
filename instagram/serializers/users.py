@@ -5,6 +5,24 @@ from rest_framework.serializers import ModelSerializer
 from instagram.models import User as InstagramUser
 
 
+class InstagramUserCreateSerializer(serializers.Serializer):
+    """Serializer for creating Instagram users with username only."""
+
+    username = serializers.CharField()
+
+    def validate_username(self, value):
+        if InstagramUser.objects.filter(username=value).exists():
+            msg = "User with this username already exists."
+            raise serializers.ValidationError(msg)
+        return value
+
+    def create(self, validated_data):
+        username = validated_data["username"]
+        instagram_user = InstagramUser.objects.create(username=username)
+        instagram_user.update_profile_from_api()
+        return instagram_user
+
+
 class InstagramUserListSerializer(ModelSerializer):
     has_stories = serializers.BooleanField(read_only=True)
     has_history = serializers.BooleanField(read_only=True)
@@ -23,6 +41,7 @@ class InstagramUserDetailSerializer(ModelSerializer):
         source="api_updated_at",
         read_only=True,
     )
+    profile_picture = serializers.SerializerMethodField()
 
     class Meta:
         model = InstagramUser
@@ -30,6 +49,13 @@ class InstagramUserDetailSerializer(ModelSerializer):
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }
+
+    def get_profile_picture(self, obj):
+        return (
+            default_storage.url(obj.profile_picture)
+            if obj.profile_picture
+            else obj.original_profile_picture_url
+        )
 
     def get_auto_update_stories_limit_count(self, obj):
         """Return the count of story update limits (placeholder for now)."""
