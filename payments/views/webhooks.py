@@ -103,16 +103,7 @@ class StripeWebhookView(APIView):
             payment_status,
         )
 
-        # Map Stripe payment status to Payment model status
-        status_mapping = {
-            "paid": Payment.STATUS_PAID,
-            "unpaid": Payment.STATUS_UNPAID,
-            "no_payment_required": Payment.STATUS_PAID,
-        }
-
-        new_status = status_mapping.get(payment_status)
-
-        if new_status is None:
+        if payment_status not in Payment.STATUS_CHOICES:
             logger.warning(
                 "Unknown payment status '%s' for payment %s. Skipping status update.",
                 payment_status,
@@ -130,19 +121,19 @@ class StripeWebhookView(APIView):
                     reference=payment_id,
                 )
             )
-            payment.status = new_status
+            payment.status = payment_status
             payment.save()
             logger.info(
                 "Updated payment %s status to %s",
                 payment_id,
-                new_status,
+                payment_status,
             )
         except Payment.DoesNotExist:
             logger.warning(
                 "Payment with reference %s not found or already paid. "
                 "Skipping status update to %s.",
                 payment_id,
-                new_status,
+                payment_status,
             )
 
     @transaction.atomic
