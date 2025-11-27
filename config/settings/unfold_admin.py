@@ -138,6 +138,11 @@ UNFOLD = {
                         "icon": "payment",
                         "link": "/admin/payments/payment/",
                     },
+                    {
+                        "title": "Webhook Logs",
+                        "icon": "history",
+                        "link": "/admin/payments/webhooklog/",
+                    },
                 ],
             },
             {

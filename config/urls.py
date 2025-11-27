@@ -17,6 +17,7 @@ urlpatterns = [
     path("authentication/", include("authentication.urls")),
     path("health/", include("health_check.urls")),
     path("instagram/", include("instagram.urls")),
+    path("payments/", include("payments.urls")),
     # Media files
     *static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT),
 ]

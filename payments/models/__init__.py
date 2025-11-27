@@ -1,3 +1,4 @@
 from .payment import Payment
+from .payment import WebhookLog
 
-__all__ = ["Payment"]
+__all__ = ["Payment", "WebhookLog"]
