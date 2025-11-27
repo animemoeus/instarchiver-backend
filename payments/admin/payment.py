@@ -28,10 +28,10 @@ class PaymentAdmin(ModelAdmin):
         "reference",
         "status",
         "amount",
-        "created_at",
-        "updated_at",
         "raw_data",
         "url",
+        "created_at",
+        "updated_at",
     )
 
     fieldsets = (

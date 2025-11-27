@@ -58,6 +58,11 @@ class Payment(models.Model):
         # Acquire a row-level lock on this payment instance
         payment = Payment.objects.select_for_update().get(pk=self.pk)
 
+        # Check if the payment is already paid and raise an error if it is
+        if payment.status == Payment.STATUS_PAID:
+            msg = "Payment is already paid"
+            raise ValueError(msg)
+
         stripe_setting = StripeSetting.get_solo()
         stripe_secret_key = stripe_setting.api_key
 
@@ -71,4 +76,5 @@ class Payment(models.Model):
         )
 
         payment.status = session.payment_status
+        payment.raw_data = session.to_dict()
         payment.save()
