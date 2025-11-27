@@ -1,5 +1,10 @@
 from django.contrib import admin
+from django.contrib import messages
+from django.http import HttpRequest
+from django.shortcuts import redirect
+from django.urls import reverse_lazy
 from unfold.admin import ModelAdmin
+from unfold.decorators import action
 
 from payments.models import Payment
 
@@ -46,3 +51,26 @@ class PaymentAdmin(ModelAdmin):
             },
         ),
     )
+
+    actions_detail = [
+        "update_from_stripe",
+    ]
+
+    @action(
+        description=("Update from Stripe"),
+        url_path="update-from-stripe",
+    )
+    def update_from_stripe(self, request: HttpRequest, object_id: int):
+        payment = Payment.objects.get(pk=object_id)
+
+        try:
+            payment.update_status()
+            messages.success(request, "Payment status updated successfully.")
+            return redirect(
+                reverse_lazy("admin:payments_payment_change", args=(object_id,)),
+            )
+        except Exception as e:  # noqa: BLE001
+            messages.error(request, str(e))
+            return redirect(
+                reverse_lazy("admin:payments_payment_change", args=(object_id,)),
+            )

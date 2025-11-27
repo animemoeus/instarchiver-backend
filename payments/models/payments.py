@@ -1,16 +1,29 @@
+import stripe
 from django.db import models
+from django.db import transaction
 
 from core.users.models import User
+from settings.models import StripeSetting
 
 
 class Payment(models.Model):
-    STATUS_UNPAID = "UNPAID"
-    STATUS_PAID = "PAID"
-    STATUS_FAILED = "FAILED"
+    # Stripe Checkout Session payment_status values (official)
+    STATUS_PAID = "paid"
+    STATUS_UNPAID = "unpaid"
+    STATUS_NO_PAYMENT_REQUIRED = "no_payment_required"
+
+    # Custom statuses for additional states
+    STATUS_FAILED = "failed"
+    STATUS_CANCELED = "canceled"
+    STATUS_PROCESSING = "processing"
+
     STATUS_CHOICES = [
-        (STATUS_UNPAID, "Unpaid"),
         (STATUS_PAID, "Paid"),
+        (STATUS_UNPAID, "Unpaid"),
+        (STATUS_NO_PAYMENT_REQUIRED, "No Payment Required"),
+        (STATUS_PROCESSING, "Processing"),
         (STATUS_FAILED, "Failed"),
+        (STATUS_CANCELED, "Canceled"),
     ]
 
     REFERENCE_STRIPE = "STRIPE"
@@ -23,7 +36,7 @@ class Payment(models.Model):
     reference = models.CharField(max_length=100, unique=True)
     url = models.URLField(max_length=1000)
     status = models.CharField(
-        max_length=10,
+        max_length=100,
         choices=STATUS_CHOICES,
         default=STATUS_UNPAID,
     )
@@ -35,3 +48,27 @@ class Payment(models.Model):
 
     def __str__(self):
         return f"Payment {self.reference} - {self.status}"
+
+    @transaction.atomic
+    def update_status(self):
+        """
+        Update payment status from Stripe with row-level locking
+        """
+
+        # Acquire a row-level lock on this payment instance
+        payment = Payment.objects.select_for_update().get(pk=self.pk)
+
+        stripe_setting = StripeSetting.get_solo()
+        stripe_secret_key = stripe_setting.api_key
+
+        if not stripe_secret_key:
+            msg = "Stripe secret key is not set"
+            raise ValueError(msg)
+
+        stripe.api_key = stripe_secret_key
+        session = stripe.checkout.Session.retrieve(
+            payment.reference,
+        )
+
+        payment.status = session.payment_status
+        payment.save()
