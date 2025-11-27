@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 class StripeWebhookView(APIView):
     authentication_classes = []
     permission_classes = []
-    parser_classes = []  # Disable DRF parsing to preserve raw request body
 
     def post(self, request):
         """
@@ -22,17 +21,19 @@ class StripeWebhookView(APIView):
         """
 
         try:
-            event = self.validate_signature(request)
+            self.validate_signature(request)
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        webhook_log = WebhookLog(
-            reference_type=WebhookLog.REFERENCE_STRIPE,
-            reference=event.get("id"),
-            raw_data=event,
-        )
-        webhook_log.save()
+        data = request.data
+        creation_data = {
+            "reference_type": WebhookLog.REFERENCE_STRIPE,
+            "reference": data.get("id"),
+            "raw_data": data,
+            "remarks": data.get("type"),
+        }
 
+        WebhookLog.objects.create(**creation_data)
         return Response({"status": "ok"})
 
     def validate_signature(self, request):
@@ -40,9 +41,11 @@ class StripeWebhookView(APIView):
         Validate the signature of the request and return the parsed event.
         """
 
+        # Get the webhook secret from the settings
         stripe_settings = StripeSetting.get_solo()
         webhook_secret = stripe_settings.webhook_secret
 
+        # Check if the webhook secret is configured
         if not webhook_secret:
             msg = "Missing Stripe webhook secret"
             logger.error(msg)
@@ -52,30 +55,18 @@ class StripeWebhookView(APIView):
         payload = request.body
         sig_header = request.headers.get("stripe-signature")
 
-        # Debug logging
-        logger.info(
-            f"Webhook secret configured: {webhook_secret[:10]}..."
-            if webhook_secret
-            else "No secret",
-        )
-
         if not sig_header:
             msg = "Missing Stripe signature header"
             logger.error(msg)
             raise ValueError(msg)
 
         try:
-            # Verify the webhook signature and construct the event
-            return stripe.Webhook.construct_event(
+            stripe.Webhook.construct_event(
                 payload=payload,
                 sig_header=sig_header,
                 secret=webhook_secret,
             )
-        except stripe.error.SignatureVerificationError as e:
-            msg = f"Stripe signature verification failed: {e}"
-            logger.exception(msg)
-            raise ValueError(msg) from e
-        except ValueError as e:
+        except Exception as e:
             msg = f"Invalid webhook payload: {e}"
             logger.exception(msg)
             raise ValueError(msg) from e
