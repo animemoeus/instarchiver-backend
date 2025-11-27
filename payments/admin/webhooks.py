@@ -9,6 +9,7 @@ class WebhookLogAdmin(ModelAdmin):
     list_display = (
         "reference",
         "reference_type",
+        "remarks",
         "created_at",
     )
     list_filter = ("reference_type", "created_at")
@@ -16,6 +17,7 @@ class WebhookLogAdmin(ModelAdmin):
     readonly_fields = (
         "reference_type",
         "reference",
+        "remarks",
         "created_at",
         "updated_at",
         "raw_data",
@@ -27,6 +29,7 @@ class WebhookLogAdmin(ModelAdmin):
             {
                 "fields": (
                     ("reference_type", "reference"),
+                    ("remarks"),
                     ("created_at", "updated_at"),
                 ),
                 "classes": ["tab"],

@@ -1,4 +1,4 @@
 from .payment import PaymentAdmin
-from .webhook_log import WebhookLogAdmin
+from .webhooks import WebhookLogAdmin
 
 __all__ = ["PaymentAdmin", "WebhookLogAdmin"]
