@@ -34,6 +34,8 @@ services:
       - instarchiver_local_postgres_data_backups:/backups
     env_file:
       - ./.envs/.local/.postgres
+    ports:
+      - '54321:5432'
 
   mailpit:
     image: docker.io/axllent/mailpit:latest

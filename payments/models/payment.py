@@ -21,7 +21,7 @@ class Payment(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     reference_type = models.CharField(max_length=20, choices=REFERENCE_CHOICES)
     reference = models.CharField(max_length=100, unique=True)
-    url = models.URLField()
+    url = models.URLField(max_length=1000)
     status = models.CharField(
         max_length=10,
         choices=STATUS_CHOICES,
