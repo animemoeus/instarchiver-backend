@@ -10,6 +10,16 @@ def run():
 
     stripe.api_key = stripe_settings.api_key
 
+    user = User.objects.first()
+    amount = 1 * 100
+
+    payment = Payment(
+        user=user,  # Replace with the actual user instance
+        reference_type=Payment.REFERENCE_STRIPE,
+        status=Payment.STATUS_UNPAID,
+        amount=amount,
+    )
+
     checkout_session = stripe.checkout.Session.create(
         payment_method_types=["card"],
         line_items=[
@@ -19,7 +29,7 @@ def run():
                     "product_data": {
                         "name": "Update User Profile Credit",
                     },
-                    "unit_amount": 100,
+                    "unit_amount": 1,
                 },
                 "quantity": 100,
             },
@@ -27,20 +37,14 @@ def run():
         mode="payment",
         success_url="https://yoursite.com/success",
         cancel_url="https://yoursite.com/cancel",
+        metadata={
+            "payment_id": payment.id,
+            "user_id": user.id,
+        },
     )
 
-    raw_data = checkout_session.to_dict()
-    user = User.objects.first()
-
-    amount = 1 * 100
-
-    payment = Payment(
-        user=user,  # Replace with the actual user instance
-        reference_type=Payment.REFERENCE_STRIPE,
-        reference=checkout_session.id,
-        url=checkout_session.url,
-        status=Payment.STATUS_UNPAID,
-        amount=amount,
-        raw_data=raw_data,
-    )
+    payment.reference = checkout_session.id
+    payment.reference_type = Payment.REFERENCE_STRIPE
+    payment.url = checkout_session.url
+    payment.raw_data = checkout_session.to_dict()
     payment.save()

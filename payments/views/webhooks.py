@@ -1,10 +1,12 @@
 import logging
 
 import stripe
+from django.db import transaction
 from rest_framework import status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from payments.models import Payment
 from payments.models import WebhookLog
 from settings.models import StripeSetting
 
@@ -34,6 +36,10 @@ class StripeWebhookView(APIView):
         }
 
         WebhookLog.objects.create(**creation_data)
+
+        if data.get("type") == "checkout.session.completed":
+            self.handle_checkout_session_completed(data)
+
         return Response({"status": "ok"})
 
     def validate_signature(self, request):
@@ -70,3 +76,21 @@ class StripeWebhookView(APIView):
             msg = f"Invalid webhook payload: {e}"
             logger.exception(msg)
             raise ValueError(msg) from e
+
+    @transaction.atomic
+    def handle_checkout_session_completed(self, data):
+        """
+        Handle a checkout.session.completed event.
+        """
+
+        data = data.get("data").get("object")
+        payment_id = data.get("id")
+        payment_status = data.get("payment_status")
+
+        if payment_status == "paid":
+            payment = Payment.objects.get(
+                reference_type=Payment.REFERENCE_STRIPE,
+                reference=payment_id,
+            )
+            payment.status = Payment.STATUS_PAID
+            payment.save()
