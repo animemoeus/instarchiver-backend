@@ -119,7 +119,7 @@ class StripeWebhookView(APIView):
             return
 
         try:
-            payment = Payment.objects.get(
+            payment = Payment.objects.select_for_update().get(
                 reference_type=Payment.REFERENCE_STRIPE,
                 reference=payment_id,
             )
@@ -203,7 +203,7 @@ class StripeWebhookView(APIView):
 
         # Now update the payment using the checkout session ID
         try:
-            payment = Payment.objects.get(
+            payment = Payment.objects.select_for_update().get(
                 reference_type=Payment.REFERENCE_STRIPE,
                 reference=checkout_session_id,
             )
