@@ -89,6 +89,8 @@ class StripeWebhookView(APIView):
         - 'paid' -> STATUS_PAID
         - 'unpaid' -> STATUS_UNPAID
         - 'no_payment_required' -> STATUS_PAID
+
+        Note: Payments that are already PAID will not be updated to prevent downgrades.
         """
 
         data = data.get("data").get("object")
@@ -119,9 +121,14 @@ class StripeWebhookView(APIView):
             return
 
         try:
-            payment = Payment.objects.select_for_update().get(
-                reference_type=Payment.REFERENCE_STRIPE,
-                reference=payment_id,
+            # Exclude already PAID payments to prevent downgrade
+            payment = (
+                Payment.objects.select_for_update()
+                .exclude(status=Payment.STATUS_PAID)
+                .get(
+                    reference_type=Payment.REFERENCE_STRIPE,
+                    reference=payment_id,
+                )
             )
             payment.status = new_status
             payment.save()
@@ -131,9 +138,9 @@ class StripeWebhookView(APIView):
                 new_status,
             )
         except Payment.DoesNotExist:
-            logger.exception(
-                "Payment with reference %s not found in database. "
-                "Cannot update status to %s.",
+            logger.warning(
+                "Payment with reference %s not found or already paid. "
+                "Skipping status update to %s.",
                 payment_id,
                 new_status,
             )
@@ -203,9 +210,14 @@ class StripeWebhookView(APIView):
 
         # Now update the payment using the checkout session ID
         try:
-            payment = Payment.objects.select_for_update().get(
-                reference_type=Payment.REFERENCE_STRIPE,
-                reference=checkout_session_id,
+            # Exclude already PAID payments to prevent downgrade
+            payment = (
+                Payment.objects.select_for_update()
+                .exclude(status=Payment.STATUS_PAID)
+                .get(
+                    reference_type=Payment.REFERENCE_STRIPE,
+                    reference=checkout_session_id,
+                )
             )
             payment.status = Payment.STATUS_PAID
             payment.save()
@@ -218,10 +230,9 @@ class StripeWebhookView(APIView):
                 Payment.STATUS_PAID,
             )
         except Payment.DoesNotExist:
-            logger.exception(
-                "Payment with checkout session reference %s not found in database. "
-                "Cannot update status to %s. (payment_intent: %s)",
+            logger.warning(
+                "Payment with checkout session reference %s not found or already paid. "
+                "Skipping status update. (payment_intent: %s)",
                 checkout_session_id,
-                Payment.STATUS_PAID,
                 payment_intent_id,
             )
