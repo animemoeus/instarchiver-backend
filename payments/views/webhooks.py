@@ -37,8 +37,12 @@ class StripeWebhookView(APIView):
 
         WebhookLog.objects.create(**creation_data)
 
-        if data.get("type") == "checkout.session.completed":
+        event_type = data.get("type")
+
+        if event_type == "checkout.session.completed":
             self.handle_checkout_session_completed(data)
+        elif event_type == "payment_intent.succeeded":
+            self.handle_payment_intent_succeeded(data)
 
         return Response({"status": "ok"})
 
@@ -132,4 +136,92 @@ class StripeWebhookView(APIView):
                 "Cannot update status to %s.",
                 payment_id,
                 new_status,
+            )
+
+    @transaction.atomic
+    def handle_payment_intent_succeeded(self, data):
+        """
+        Handle a payment_intent.succeeded event.
+        This event fires when a PaymentIntent has successfully completed payment.
+
+        Note: Our Payment model stores checkout session IDs, not payment intent IDs.
+        We need to retrieve the checkout session from the payment intent to find
+        the related Payment record.
+        """
+
+        data = data.get("data").get("object")
+        payment_intent_id = data.get("id")
+        payment_status = data.get("status")
+
+        logger.info(
+            "Processing payment_intent.succeeded for payment_intent %s with status: %s",
+            payment_intent_id,
+            payment_status,
+        )
+
+        # For payment_intent.succeeded, the status should always be 'succeeded'
+        if payment_status != "succeeded":
+            logger.warning(
+                "Unexpected status '%s' for payment_intent.succeeded event. "
+                "Expected 'succeeded'. Skipping update.",
+                payment_status,
+            )
+            return
+
+        # Retrieve the payment intent from Stripe to get the checkout session
+        try:
+            stripe_settings = StripeSetting.get_solo()
+            stripe.api_key = stripe_settings.api_key
+
+            # Get the checkout session ID from the payment intent
+            checkout_sessions = stripe.checkout.Session.list(
+                payment_intent=payment_intent_id,
+                limit=1,
+            )
+
+            if not checkout_sessions.data:
+                logger.warning(
+                    "No checkout session found for payment_intent %s. "
+                    "Cannot update payment status.",
+                    payment_intent_id,
+                )
+                return
+
+            checkout_session_id = checkout_sessions.data[0].id
+
+            logger.info(
+                "Found checkout session %s for payment_intent %s",
+                checkout_session_id,
+                payment_intent_id,
+            )
+        except Exception:
+            logger.exception(
+                "Error retrieving checkout session for payment_intent %s",
+                payment_intent_id,
+            )
+            return
+
+        # Now update the payment using the checkout session ID
+        try:
+            payment = Payment.objects.get(
+                reference_type=Payment.REFERENCE_STRIPE,
+                reference=checkout_session_id,
+            )
+            payment.status = Payment.STATUS_PAID
+            payment.save()
+            logger.info(
+                "Updated payment %s (checkout_session: %s, payment_intent: %s) "
+                "status to %s via payment_intent.succeeded",
+                payment.id,
+                checkout_session_id,
+                payment_intent_id,
+                Payment.STATUS_PAID,
+            )
+        except Payment.DoesNotExist:
+            logger.exception(
+                "Payment with checkout session reference %s not found in database. "
+                "Cannot update status to %s. (payment_intent: %s)",
+                checkout_session_id,
+                Payment.STATUS_PAID,
+                payment_intent_id,
             )
