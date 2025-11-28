@@ -45,7 +45,7 @@ class InstagramUserDetailSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser
-        exclude = ["original_profile_picture_url", "raw_api_data"]
+        exclude = ["raw_api_data"]
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }
