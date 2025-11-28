@@ -3,6 +3,7 @@ from django.contrib import messages
 from django.http import HttpRequest
 from django.shortcuts import redirect
 from django.urls import reverse_lazy
+from simple_history.admin import SimpleHistoryAdmin
 from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
@@ -10,7 +11,7 @@ from payments.models import Payment
 
 
 @admin.register(Payment)
-class PaymentAdmin(ModelAdmin):
+class PaymentAdmin(SimpleHistoryAdmin, ModelAdmin):
     list_display = (
         "id",
         "user",

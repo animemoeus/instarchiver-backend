@@ -1,6 +1,7 @@
 import stripe
 from django.db import models
 from django.db import transaction
+from simple_history.models import HistoricalRecords
 
 from core.users.models import User
 from settings.models import StripeSetting
@@ -45,6 +46,7 @@ class Payment(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    history = HistoricalRecords()
 
     def __str__(self):
         return f"Payment {self.reference} - {self.status}"
