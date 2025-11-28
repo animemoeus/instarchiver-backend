@@ -21,9 +21,112 @@ class PaymentFactory(DjangoModelFactory):
             "payment_status": "unpaid",
             "amount_total": 1000,
             "currency": "usd",
+            "status": "open",
+            "mode": "payment",
         },
     )
 
     class Meta:
         model = Payment
         django_get_or_create = ["reference"]
+
+    class Params:
+        # Trait for paid status
+        paid = factory.Trait(
+            status=Payment.STATUS_PAID,
+            raw_data=factory.LazyFunction(
+                lambda: {
+                    "id": factory.Faker("uuid4").evaluate(
+                        None,
+                        None,
+                        extra={"locale": None},
+                    ),
+                    "object": "checkout.session",
+                    "payment_status": "paid",
+                    "amount_total": 1000,
+                    "currency": "usd",
+                    "status": "complete",
+                    "mode": "payment",
+                },
+            ),
+        )
+
+        # Trait for no_payment_required status
+        no_payment_required = factory.Trait(
+            status=Payment.STATUS_NO_PAYMENT_REQUIRED,
+            raw_data=factory.LazyFunction(
+                lambda: {
+                    "id": factory.Faker("uuid4").evaluate(
+                        None,
+                        None,
+                        extra={"locale": None},
+                    ),
+                    "object": "checkout.session",
+                    "payment_status": "no_payment_required",
+                    "amount_total": 0,
+                    "currency": "usd",
+                    "status": "complete",
+                    "mode": "payment",
+                },
+            ),
+        )
+
+        # Trait for processing status
+        processing = factory.Trait(
+            status=Payment.STATUS_PROCESSING,
+            raw_data=factory.LazyFunction(
+                lambda: {
+                    "id": factory.Faker("uuid4").evaluate(
+                        None,
+                        None,
+                        extra={"locale": None},
+                    ),
+                    "object": "checkout.session",
+                    "payment_status": "unpaid",
+                    "amount_total": 1000,
+                    "currency": "usd",
+                    "status": "open",
+                    "mode": "payment",
+                },
+            ),
+        )
+
+        # Trait for failed status
+        failed = factory.Trait(
+            status=Payment.STATUS_FAILED,
+            raw_data=factory.LazyFunction(
+                lambda: {
+                    "id": factory.Faker("uuid4").evaluate(
+                        None,
+                        None,
+                        extra={"locale": None},
+                    ),
+                    "object": "checkout.session",
+                    "payment_status": "unpaid",
+                    "amount_total": 1000,
+                    "currency": "usd",
+                    "status": "expired",
+                    "mode": "payment",
+                },
+            ),
+        )
+
+        # Trait for canceled status
+        canceled = factory.Trait(
+            status=Payment.STATUS_CANCELED,
+            raw_data=factory.LazyFunction(
+                lambda: {
+                    "id": factory.Faker("uuid4").evaluate(
+                        None,
+                        None,
+                        extra={"locale": None},
+                    ),
+                    "object": "checkout.session",
+                    "payment_status": "unpaid",
+                    "amount_total": 1000,
+                    "currency": "usd",
+                    "status": "expired",
+                    "mode": "payment",
+                },
+            ),
+        )
