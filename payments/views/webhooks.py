@@ -25,6 +25,7 @@ class StripeWebhookView(APIView):
         try:
             self.validate_signature(request)
         except ValueError as e:
+            # Log the webhook request even if it's invalid
             WebhookLog.objects.create(
                 reference_type=WebhookLog.REFERENCE_STRIPE,
                 reference="",
@@ -40,7 +41,6 @@ class StripeWebhookView(APIView):
             "raw_data": data,
             "remarks": data.get("type"),
         }
-
         WebhookLog.objects.create(**creation_data)
 
         event_type = data.get("type")
@@ -49,6 +49,11 @@ class StripeWebhookView(APIView):
             self.handle_checkout_session_completed(data)
         elif event_type == "payment_intent.succeeded":
             self.handle_payment_intent_succeeded(data)
+        else:
+            logger.warning(
+                "Unknown event type '%s'. Skipping event processing.",
+                event_type,
+            )
 
         return Response({"status": "ok"})
 
@@ -109,7 +114,7 @@ class StripeWebhookView(APIView):
             payment_status,
         )
 
-        if payment_status not in Payment.STATUS_CHOICES:
+        if payment_status not in [choice[0] for choice in Payment.STATUS_CHOICES]:
             logger.warning(
                 "Unknown payment status '%s' for payment %s. Skipping status update.",
                 payment_status,
