@@ -1,3 +1,5 @@
+import logging
+
 import stripe
 from django.db import models
 from django.db import transaction
@@ -5,6 +7,8 @@ from simple_history.models import HistoricalRecords
 
 from core.users.models import User
 from settings.models import StripeSetting
+
+logger = logging.getLogger(__name__)
 
 
 class Payment(models.Model):
@@ -54,16 +58,21 @@ class Payment(models.Model):
     @transaction.atomic
     def update_status(self):
         """
-        Update payment status from Stripe with row-level locking
+        Update payment status from Stripe with row-level locking.
+
+        Returns early without error if payment is already paid (idempotent).
         """
 
         # Acquire a row-level lock on this payment instance
         payment = Payment.objects.select_for_update().get(pk=self.pk)
 
-        # Check if the payment is already paid and raise an error if it is
+        # Return early if payment is already paid (idempotent behavior)
         if payment.status == Payment.STATUS_PAID:
-            msg = "Payment is already paid, cannot update status."
-            raise ValueError(msg)
+            logger.info(
+                "Payment %s is already paid, skipping status update.",
+                payment.reference,
+            )
+            return
 
         stripe_setting = StripeSetting.get_solo()
         stripe_secret_key = stripe_setting.api_key
@@ -80,3 +89,9 @@ class Payment(models.Model):
         payment.status = session.payment_status
         payment.raw_data = session.to_dict()
         payment.save()
+
+        logger.info(
+            "Updated payment %s status to %s",
+            payment.reference,
+            payment.status,
+        )

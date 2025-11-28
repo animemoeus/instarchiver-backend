@@ -276,39 +276,36 @@ def _update_checkout_session_payment_status(checkout_session_id, payment_status)
 
     Args:
         checkout_session_id (str): The Stripe checkout session ID
-        payment_status (str): The payment status from Stripe
+        payment_status (str): The payment status from Stripe (for logging)
 
     Raises:
-        Payment.DoesNotExist: If payment is not found or already paid
+        Payment.DoesNotExist: If payment is not found
     """
     try:
-        # Get payment (exclude already PAID to prevent downgrade)
-        payment = Payment.objects.exclude(status=Payment.STATUS_PAID).get(
+        payment = Payment.objects.get(
             reference_type=Payment.REFERENCE_STRIPE,
             reference=checkout_session_id,
         )
 
         # Use the model's update_status method to update both status and raw_data
+        # This method is idempotent and handles already-paid payments gracefully
         payment.update_status()
 
         logger.info(
-            "Updated payment %s status to %s and raw_data via checkout.session.completed",  # noqa: E501
+            "Processed checkout.session.completed for payment %s",
             checkout_session_id,
-            payment_status,
         )
     except Payment.DoesNotExist:
         logger.warning(
-            "Payment with reference %s not found or already paid. "
-            "Skipping status update to %s.",
+            "Payment with reference %s not found. Skipping status update.",
             checkout_session_id,
-            payment_status,
         )
         raise
 
 
 def _update_payment_status(checkout_session_id, payment_intent_id):
     """
-    Update the payment status to PAID and raw data using the checkout session ID.
+    Update the payment status and raw data using the checkout session ID.
 
     This function uses the Payment model's update_status method to retrieve
     the full checkout session data from Stripe API.
@@ -318,29 +315,26 @@ def _update_payment_status(checkout_session_id, payment_intent_id):
         payment_intent_id (str): The Stripe payment intent ID (for logging)
 
     Raises:
-        Payment.DoesNotExist: If payment is not found or already paid
+        Payment.DoesNotExist: If payment is not found
     """
     try:
-        # Get payment (exclude already PAID to prevent downgrade)
-        payment = Payment.objects.exclude(status=Payment.STATUS_PAID).get(
+        payment = Payment.objects.get(
             reference_type=Payment.REFERENCE_STRIPE,
             reference=checkout_session_id,
         )
 
         # Use the model's update_status method to update both status and raw_data
+        # This method is idempotent and handles already-paid payments gracefully
         payment.update_status()
 
         logger.info(
-            "Updated payment %s (checkout_session: %s, payment_intent: %s) "
-            "status to %s and raw_data via payment_intent.succeeded",
-            payment.id,
+            "Processed payment_intent.succeeded for payment %s (payment_intent: %s)",
             checkout_session_id,
             payment_intent_id,
-            Payment.STATUS_PAID,
         )
     except Payment.DoesNotExist:
         logger.warning(
-            "Payment with checkout session reference %s not found or already paid. "
+            "Payment with checkout session reference %s not found. "
             "Skipping status update. (payment_intent: %s)",
             checkout_session_id,
             payment_intent_id,
