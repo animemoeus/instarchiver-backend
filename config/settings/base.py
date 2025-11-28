@@ -107,6 +107,7 @@ LOCAL_APPS = [
     "authentication",
     "api_logs",
     "instagram",
+    "payments",
     "settings",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps

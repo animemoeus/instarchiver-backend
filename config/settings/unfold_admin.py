@@ -129,6 +129,23 @@ UNFOLD = {
                 ],
             },
             {
+                "title": "Payments",
+                "separator": True,
+                "collapsible": True,
+                "items": [
+                    {
+                        "title": "Payments",
+                        "icon": "payment",
+                        "link": "/admin/payments/payment/",
+                    },
+                    {
+                        "title": "Webhook Logs",
+                        "icon": "history",
+                        "link": "/admin/payments/webhooklog/",
+                    },
+                ],
+            },
+            {
                 "title": "API Monitoring",
                 "separator": True,
                 "collapsible": True,
@@ -159,6 +176,11 @@ UNFOLD = {
                         "title": "Firebase Admin Settings",
                         "icon": "cloud",
                         "link": "/admin/settings/firebaseadminsetting/",
+                    },
+                    {
+                        "title": "Stripe Settings",
+                        "icon": "credit_card",
+                        "link": "/admin/settings/stripesetting/",
                     },
                 ],
             },
