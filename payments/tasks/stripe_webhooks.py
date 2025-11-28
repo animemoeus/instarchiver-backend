@@ -2,7 +2,6 @@ import logging
 
 import stripe
 from celery import shared_task
-from django.db import transaction
 
 from payments.models import Payment
 from settings.models import StripeSetting
@@ -271,10 +270,9 @@ def _get_checkout_session_from_payment_intent(payment_intent_id):
         raise
 
 
-@transaction.atomic
 def _update_checkout_session_payment_status(checkout_session_id, payment_status):
     """
-    Update the payment status using the checkout session ID.
+    Update the payment status and raw data using the checkout session ID.
 
     Args:
         checkout_session_id (str): The Stripe checkout session ID
@@ -284,20 +282,17 @@ def _update_checkout_session_payment_status(checkout_session_id, payment_status)
         Payment.DoesNotExist: If payment is not found or already paid
     """
     try:
-        # Exclude already PAID payments to prevent downgrade
-        payment = (
-            Payment.objects.select_for_update()
-            .exclude(status=Payment.STATUS_PAID)
-            .get(
-                reference_type=Payment.REFERENCE_STRIPE,
-                reference=checkout_session_id,
-            )
+        # Get payment (exclude already PAID to prevent downgrade)
+        payment = Payment.objects.exclude(status=Payment.STATUS_PAID).get(
+            reference_type=Payment.REFERENCE_STRIPE,
+            reference=checkout_session_id,
         )
-        payment.status = payment_status
-        payment.save()
+
+        # Use the model's update_status method to update both status and raw_data
+        payment.update_status()
 
         logger.info(
-            "Updated payment %s status to %s via checkout.session.completed",
+            "Updated payment %s status to %s and raw_data via checkout.session.completed",  # noqa: E501
             checkout_session_id,
             payment_status,
         )
@@ -311,10 +306,12 @@ def _update_checkout_session_payment_status(checkout_session_id, payment_status)
         raise
 
 
-@transaction.atomic
 def _update_payment_status(checkout_session_id, payment_intent_id):
     """
-    Update the payment status to PAID using the checkout session ID.
+    Update the payment status to PAID and raw data using the checkout session ID.
+
+    This function uses the Payment model's update_status method to retrieve
+    the full checkout session data from Stripe API.
 
     Args:
         checkout_session_id (str): The Stripe checkout session ID
@@ -324,21 +321,18 @@ def _update_payment_status(checkout_session_id, payment_intent_id):
         Payment.DoesNotExist: If payment is not found or already paid
     """
     try:
-        # Exclude already PAID payments to prevent downgrade
-        payment = (
-            Payment.objects.select_for_update()
-            .exclude(status=Payment.STATUS_PAID)
-            .get(
-                reference_type=Payment.REFERENCE_STRIPE,
-                reference=checkout_session_id,
-            )
+        # Get payment (exclude already PAID to prevent downgrade)
+        payment = Payment.objects.exclude(status=Payment.STATUS_PAID).get(
+            reference_type=Payment.REFERENCE_STRIPE,
+            reference=checkout_session_id,
         )
-        payment.status = Payment.STATUS_PAID
-        payment.save()
+
+        # Use the model's update_status method to update both status and raw_data
+        payment.update_status()
 
         logger.info(
             "Updated payment %s (checkout_session: %s, payment_intent: %s) "
-            "status to %s via payment_intent.succeeded",
+            "status to %s and raw_data via payment_intent.succeeded",
             payment.id,
             checkout_session_id,
             payment_intent_id,

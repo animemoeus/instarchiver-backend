@@ -62,7 +62,7 @@ class Payment(models.Model):
 
         # Check if the payment is already paid and raise an error if it is
         if payment.status == Payment.STATUS_PAID:
-            msg = "Payment is already paid"
+            msg = "Payment is already paid, cannot update status."
             raise ValueError(msg)
 
         stripe_setting = StripeSetting.get_solo()
