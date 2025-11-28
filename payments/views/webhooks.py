@@ -25,6 +25,12 @@ class StripeWebhookView(APIView):
         try:
             self.validate_signature(request)
         except ValueError as e:
+            WebhookLog.objects.create(
+                reference_type=WebhookLog.REFERENCE_STRIPE,
+                reference="",
+                raw_data=request.data,
+                remarks=str(e),
+            )
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
         data = request.data
