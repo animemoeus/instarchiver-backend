@@ -1,5 +1,6 @@
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.response import Response
 
 from payments.models import Payment
 from payments.paginations import PaymentCursorPagination
@@ -19,3 +20,8 @@ class PaymentListCreateAPIView(ListCreateAPIView):
         if self.request.method == "POST":
             return PaymentCreateSerializer
         return PaymentListSerializer
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        return Response("arter")
