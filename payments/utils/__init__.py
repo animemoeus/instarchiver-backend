@@ -1,6 +1,7 @@
 """Payment utilities for handling multiple payment gateways."""
 
 from payments.utils.base import BasePaymentGateway
+from payments.utils.base import stripe_create_instagram_user_story_credits_payment
 from payments.utils.exceptions import CustomerCreationError
 from payments.utils.exceptions import PaymentConfigurationError
 from payments.utils.exceptions import PaymentCreationError
@@ -44,4 +45,5 @@ __all__ = [
     "WebhookEvent",
     "WebhookProcessingError",
     "WebhookVerificationError",
+    "stripe_create_instagram_user_story_credits_payment",
 ]

@@ -10,17 +10,21 @@ from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.generics import RetrieveAPIView
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import InstagramUserCursorPagination
 from instagram.paginations import InstagramUserHistoryCursorPagination
+from instagram.serializers.users import CreateInstagramUserStoryCreditSerializer
 from instagram.serializers.users import InstagramUserCreateSerializer
 from instagram.serializers.users import InstagramUserDetailSerializer
 from instagram.serializers.users import InstagramUserHistoryListSerializer
 from instagram.serializers.users import InstagramUserListSerializer
+from payments.utils import stripe_create_instagram_user_story_credits_payment
 
 
 class InstagramUserListCreateView(ListCreateAPIView):
@@ -126,3 +130,23 @@ class InstagramUserHistoryView(ListAPIView):
     def get_queryset(self):
         uuid = self.kwargs.get("uuid")
         return InstagramUser.history.filter(uuid=uuid).order_by("-history_date")
+
+
+class InstagramUserAddStoryCreditAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = CreateInstagramUserStoryCreditSerializer
+
+    def post(self, request, uuid):
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        user = request.user
+        instagram_user = InstagramUser.objects.get(uuid=uuid)
+
+        _ = stripe_create_instagram_user_story_credits_payment(
+            user_id=user.id,
+            instagram_user_id=instagram_user.pk,
+            story_credit_quantity=serializer.validated_data["story_credit"],
+        )
+
+        return Response({"detail": "Payment created successfully."})

@@ -1,5 +1,6 @@
 from django.urls import path
 
+from instagram.views import InstagramUserAddStoryCreditAPIView
 from instagram.views import InstagramUserDetailView
 from instagram.views import InstagramUserHistoryView
 from instagram.views import InstagramUserListCreateView
@@ -11,6 +12,11 @@ app_name = "instagram"
 urlpatterns = [
     path("users/", InstagramUserListCreateView.as_view(), name="user_list"),
     path("users/<uuid:uuid>/", InstagramUserDetailView.as_view(), name="user_detail"),
+    path(
+        "users/<uuid:uuid>/add-story-credit/",
+        InstagramUserAddStoryCreditAPIView.as_view(),
+        name="user_add_story_credit",
+    ),
     path("stories/", StoryListView.as_view(), name="story_list"),
     path("stories/<str:story_id>/", StoryDetailView.as_view(), name="story_detail"),
     path(
