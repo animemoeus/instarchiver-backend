@@ -234,7 +234,7 @@ def stripe_create_instagram_user_story_credits_payment(
                 "price_data": {
                     "currency": "usd",
                     "product_data": {
-                        "name": "Instagram Auto Update User Story Credits",
+                        "name": f"Instagram Auto Update User Story Credits (x{story_credit_quantity})",  # noqa: E501
                     },
                     "unit_amount": 1,
                 },
@@ -242,8 +242,8 @@ def stripe_create_instagram_user_story_credits_payment(
             },
         ],
         mode="payment",
-        success_url="https://yoursite.com/success",
-        cancel_url="https://yoursite.com/cancel",
+        success_url="https://instarchiver.com/success",
+        cancel_url="https://instarchiver.com/cancel",
         metadata={
             "payment_id": payment.id,
             "user_id": user.id,
