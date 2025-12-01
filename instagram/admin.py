@@ -9,6 +9,8 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
 from .models import Story
+from .models import StoryCredit
+from .models import StoryCreditPayment
 from .models import User
 from .models import UserUpdateStoryLog
 
@@ -197,6 +199,95 @@ class StoryAdmin(ModelAdmin):
                 "fields": (
                     "created_at",
                     "raw_api_data",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+    )
+    ordering = ["-created_at"]
+
+
+@admin.register(StoryCredit)
+class StoryCreditAdmin(ModelAdmin):
+    list_display = [
+        "user",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    list_filter = [
+        "created_at",
+        "updated_at",
+    ]
+    search_fields = ["user__username"]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+    ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "user",
+                    "credit",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+    )
+    ordering = ["-created_at"]
+
+
+@admin.register(StoryCreditPayment)
+class StoryCreditPaymentAdmin(ModelAdmin):
+    list_display = [
+        "story_credit",
+        "payment",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    list_filter = [
+        "created_at",
+        "updated_at",
+    ]
+    search_fields = [
+        "story_credit__user__username",
+        "payment__reference",
+    ]
+    readonly_fields = [
+        "created_at",
+        "updated_at",
+    ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    "story_credit",
+                    "payment",
+                    "credit",
+                ),
+                "classes": ["tab"],
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": (
+                    "created_at",
+                    "updated_at",
                 ),
                 "classes": ["tab"],
             },

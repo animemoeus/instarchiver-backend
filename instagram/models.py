@@ -8,6 +8,7 @@ from simple_history.models import HistoricalRecords
 from core.utils.instagram_api import fetch_user_info_by_user_id
 from core.utils.instagram_api import fetch_user_info_by_username_v2
 from core.utils.instagram_api import fetch_user_stories_by_username
+from payments.models import Payment
 
 from .misc import get_user_profile_picture_upload_location
 from .misc import get_user_story_upload_location
@@ -295,3 +296,37 @@ class UserUpdateStoryLog(models.Model):
 
     def __str__(self):
         return f"Story Update for {self.user.username} - {self.status}"
+
+
+class StoryCredit(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE)
+    credit = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Story Credit"
+        verbose_name_plural = "Story Credits"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Story Credit for {self.user.username}"
+
+
+class StoryCreditPayment(models.Model):
+    story_credit = models.ForeignKey(StoryCredit, on_delete=models.CASCADE)
+    payment = models.ForeignKey(Payment, on_delete=models.CASCADE)
+
+    credit = models.IntegerField(default=0)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Story Credit Payment"
+        verbose_name_plural = "Story Credit Payments"
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"Story Credit Payment for {self.story_credit.user.username}"

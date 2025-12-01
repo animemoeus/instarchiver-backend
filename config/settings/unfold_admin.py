@@ -126,6 +126,16 @@ UNFOLD = {
                         "icon": "history",
                         "link": "/admin/instagram/userupdatestorylog/",
                     },
+                    {
+                        "title": "Story Credit",
+                        "icon": "history",
+                        "link": "/admin/instagram/storycredit/",
+                    },
+                    {
+                        "title": "Story Credit Logs",
+                        "icon": "history",
+                        "link": "/admin/instagram/storycreditlog/",
+                    },
                 ],
             },
             {
