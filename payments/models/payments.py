@@ -36,6 +36,13 @@ class Payment(models.Model):
         (REFERENCE_STRIPE, "Stripe"),
     ]
 
+    TYPE_INSTAGRAM_USER_STORY_CREDIT = "INSTAGRAM_USER_STORY_CREDIT"
+    TYPE_INSTAGRAM_USER_PROFILE_CREDIT = "INSTAGRAM_USER_PROFILE_CREDIT"
+    TYPE_CHOICES = [
+        (TYPE_INSTAGRAM_USER_STORY_CREDIT, "Instagram User Story Credit"),
+        (TYPE_INSTAGRAM_USER_PROFILE_CREDIT, "Instagram User Profile Credit"),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     reference_type = models.CharField(max_length=20, choices=REFERENCE_CHOICES)
     reference = models.CharField(max_length=100, unique=True)
@@ -45,6 +52,7 @@ class Payment(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_UNPAID,
     )
+    type = models.CharField(max_length=255, choices=TYPE_CHOICES, null=True)  # noqa: DJ001
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     raw_data = models.JSONField()
 

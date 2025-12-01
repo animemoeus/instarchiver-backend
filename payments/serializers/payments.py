@@ -9,4 +9,10 @@ class PaymentListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Payment
-        fields = ["id", "amount", "status", "created_at", "user"]
+        fields = ["id", "amount", "status", "created_at", "user", "reference_type"]
+
+
+class PaymentCreateSerializer(serializers.Serializer):
+    reference_type = serializers.ChoiceField(choices=Payment.REFERENCE_CHOICES)
+    type = serializers.ChoiceField(choices=Payment.TYPE_CHOICES)
+    quantity = serializers.IntegerField(min_value=1)
