@@ -82,18 +82,31 @@ class Payment(models.Model):
             )
             return
 
+        if payment.reference_type == Payment.REFERENCE_STRIPE:
+            self.handle_stripe_payment(payment)
+        return
+
+    def handle_stripe_payment(self, payment):
+        from instagram.models import StoryCreditPayment  # noqa: PLC0415
+
+        # Get Stripe settings
         stripe_setting = StripeSetting.get_solo()
         stripe_secret_key = stripe_setting.api_key
 
+        # Validate Stripe settings
         if not stripe_secret_key:
             msg = "Stripe secret key is not set"
             raise ValueError(msg)
 
+        # Set Stripe API key
         stripe.api_key = stripe_secret_key
+
+        # Retrieve payment session from Stripe
         session = stripe.checkout.Session.retrieve(
             payment.reference,
         )
 
+        # Update payment status
         payment.status = session.payment_status
         payment.raw_data = session.to_dict()
         payment.save()
@@ -103,3 +116,11 @@ class Payment(models.Model):
             payment.reference,
             payment.status,
         )
+
+        if payment.status == Payment.STATUS_PAID:
+            metadata = session.metadata
+            StoryCreditPayment.create_record(
+                instagram_user_id=metadata.get("instagram_user_id"),
+                credit=metadata.get("story_credit_quantity"),
+                payment_id=payment.id,
+            )

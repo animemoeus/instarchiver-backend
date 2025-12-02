@@ -245,8 +245,9 @@ def stripe_create_instagram_user_story_credits_payment(
         success_url="https://instarchiver.com/success",
         cancel_url="https://instarchiver.com/cancel",
         metadata={
-            "payment_id": payment.id,
             "user_id": user.id,
+            "instagram_user_id": instagram_user_id,
+            "story_credit_quantity": story_credit_quantity,
         },
     )
 

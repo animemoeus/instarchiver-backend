@@ -14,7 +14,7 @@ class PaymentListSerializer(serializers.ModelSerializer):
 
 
 class PaymentCreateSerializer(serializers.Serializer):
-    reference_type = serializers.ChoiceField(choices=Payment.REFERENCE_CHOICES)
+    using = serializers.ChoiceField(choices=Payment.REFERENCE_CHOICES)
     type = serializers.ChoiceField(choices=Payment.TYPE_CHOICES)
     target = serializers.CharField()
     quantity = serializers.IntegerField(min_value=1)
