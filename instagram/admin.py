@@ -208,7 +208,7 @@ class StoryAdmin(ModelAdmin):
 
 
 @admin.register(StoryCredit)
-class StoryCreditAdmin(ModelAdmin):
+class StoryCreditAdmin(SimpleHistoryAdmin, ModelAdmin):
     list_display = [
         "user",
         "credit",
