@@ -134,7 +134,7 @@ UNFOLD = {
                     {
                         "title": "Story Credit Logs",
                         "icon": "history",
-                        "link": "/admin/instagram/storycreditlog/",
+                        "link": "/admin/instagram/storycreditpayment/",
                     },
                 ],
             },

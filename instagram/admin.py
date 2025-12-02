@@ -221,6 +221,8 @@ class StoryCreditAdmin(ModelAdmin):
     ]
     search_fields = ["user__username"]
     readonly_fields = [
+        "user",
+        "credit",
         "created_at",
         "updated_at",
     ]
@@ -229,20 +231,9 @@ class StoryCreditAdmin(ModelAdmin):
             "General",
             {
                 "fields": (
-                    "user",
-                    "credit",
+                    ("user", "credit"),
+                    ("created_at", "updated_at"),
                 ),
-                "classes": ["tab"],
-            },
-        ),
-        (
-            "Metadata",
-            {
-                "fields": (
-                    "created_at",
-                    "updated_at",
-                ),
-                "classes": ["tab"],
             },
         ),
     )
@@ -267,6 +258,9 @@ class StoryCreditPaymentAdmin(ModelAdmin):
         "payment__reference",
     ]
     readonly_fields = [
+        "story_credit",
+        "payment",
+        "credit",
         "created_at",
         "updated_at",
     ]
@@ -275,21 +269,10 @@ class StoryCreditPaymentAdmin(ModelAdmin):
             "General",
             {
                 "fields": (
-                    "story_credit",
-                    "payment",
+                    ("story_credit", "payment"),
                     "credit",
+                    ("created_at", "updated_at"),
                 ),
-                "classes": ["tab"],
-            },
-        ),
-        (
-            "Metadata",
-            {
-                "fields": (
-                    "created_at",
-                    "updated_at",
-                ),
-                "classes": ["tab"],
             },
         ),
     )
