@@ -343,7 +343,7 @@ class StoryCreditPayment(models.Model):
     def create_record(payment_id, instagram_user_id, credit):
         instagram_user = User.objects.get(uuid=instagram_user_id)
         story_credit, _ = StoryCredit.objects.get_or_create(user=instagram_user)
-        payment = Payment.objects.get(uuid=payment_id)
+        payment = Payment.objects.get(id=payment_id)
 
         return StoryCreditPayment.objects.create(
             story_credit=story_credit,

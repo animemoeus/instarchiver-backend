@@ -121,6 +121,6 @@ class Payment(models.Model):
             metadata = session.metadata
             StoryCreditPayment.create_record(
                 instagram_user_id=metadata.get("instagram_user_id"),
-                credit=metadata.get("story_credit_quantity"),
+                credit=int(metadata.get("story_credit_quantity")),
                 payment_id=payment.id,
             )
