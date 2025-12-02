@@ -27,6 +27,7 @@ class PaymentAdmin(SimpleHistoryAdmin, ModelAdmin):
         "user",
         "reference_type",
         "reference",
+        "type",
         "status",
         "amount",
         "raw_data",
@@ -42,7 +43,7 @@ class PaymentAdmin(SimpleHistoryAdmin, ModelAdmin):
                 "fields": (
                     ("user", "status"),
                     ("reference_type", "reference"),
-                    "amount",
+                    ("type", "amount"),
                     "url",
                     ("created_at", "updated_at"),
                 ),

@@ -36,6 +36,13 @@ class Payment(models.Model):
         (REFERENCE_STRIPE, "Stripe"),
     ]
 
+    TYPE_INSTAGRAM_USER_STORY_CREDIT = "INSTAGRAM_USER_STORY_CREDIT"
+    TYPE_INSTAGRAM_USER_PROFILE_CREDIT = "INSTAGRAM_USER_PROFILE_CREDIT"
+    TYPE_CHOICES = [
+        (TYPE_INSTAGRAM_USER_STORY_CREDIT, "Instagram User Story Credit"),
+        (TYPE_INSTAGRAM_USER_PROFILE_CREDIT, "Instagram User Profile Credit"),
+    ]
+
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     reference_type = models.CharField(max_length=20, choices=REFERENCE_CHOICES)
     reference = models.CharField(max_length=100, unique=True)
@@ -45,6 +52,7 @@ class Payment(models.Model):
         choices=STATUS_CHOICES,
         default=STATUS_UNPAID,
     )
+    type = models.CharField(max_length=255, choices=TYPE_CHOICES, null=True)  # noqa: DJ001
     amount = models.DecimalField(max_digits=10, decimal_places=2)
     raw_data = models.JSONField()
 
@@ -74,18 +82,31 @@ class Payment(models.Model):
             )
             return
 
+        if payment.reference_type == Payment.REFERENCE_STRIPE:
+            self.handle_stripe_payment(payment)
+        return
+
+    def handle_stripe_payment(self, payment):
+        from instagram.models import StoryCreditPayment  # noqa: PLC0415
+
+        # Get Stripe settings
         stripe_setting = StripeSetting.get_solo()
         stripe_secret_key = stripe_setting.api_key
 
+        # Validate Stripe settings
         if not stripe_secret_key:
             msg = "Stripe secret key is not set"
             raise ValueError(msg)
 
+        # Set Stripe API key
         stripe.api_key = stripe_secret_key
+
+        # Retrieve payment session from Stripe
         session = stripe.checkout.Session.retrieve(
             payment.reference,
         )
 
+        # Update payment status
         payment.status = session.payment_status
         payment.raw_data = session.to_dict()
         payment.save()
@@ -95,3 +116,11 @@ class Payment(models.Model):
             payment.reference,
             payment.status,
         )
+
+        if payment.status == Payment.STATUS_PAID:
+            metadata = session.metadata
+            StoryCreditPayment.create_record(
+                instagram_user_id=metadata.get("instagram_user_id"),
+                credit=int(metadata.get("story_credit_quantity")),
+                payment_id=payment.id,
+            )

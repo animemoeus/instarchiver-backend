@@ -82,3 +82,13 @@ class InstagramUserHistoryListSerializer(ModelSerializer):
             # Historical records store the file path as a string
             return default_storage.url(obj.profile_picture)
         return None
+
+
+class CreateInstagramUserStoryCreditSerializer(serializers.Serializer):
+    story_credit = serializers.IntegerField()
+
+    def validate_story_credit(self, value):
+        if value < 0:
+            msg = "Story credit cannot be negative."
+            raise serializers.ValidationError(msg)
+        return value
