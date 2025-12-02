@@ -1,4 +1,5 @@
 import logging
+import warnings
 
 import stripe
 from django.db import transaction
@@ -18,7 +19,25 @@ def stripe_create_instagram_user_story_credits_payment(
 ) -> Payment:
     """
     Create a payment for Instagram user story credits.
+
+    .. deprecated::
+        This function is deprecated. Use the gateway architecture instead:
+
+        from payments.gateways.factory import PaymentGatewayFactory
+        gateway = PaymentGatewayFactory.get_gateway(Payment.REFERENCE_STRIPE)
+        payment_data = gateway.create_checkout_session(
+            user_id=user_id,
+            payment_type=Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            target=instagram_user_id,
+            quantity=story_credit_quantity,
+        )
     """
+    warnings.warn(
+        "stripe_create_instagram_user_story_credits_payment is deprecated. "
+        "Use PaymentGatewayFactory instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
     stripe_settings = StripeSetting.get_solo()
     stripe.api_key = stripe_settings.api_key

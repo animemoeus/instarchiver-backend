@@ -1,12 +1,10 @@
 import logging
 
-import stripe
 from django.db import models
 from django.db import transaction
 from simple_history.models import HistoricalRecords
 
 from core.users.models import User
-from settings.models import StripeSetting
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +64,12 @@ class Payment(models.Model):
     @transaction.atomic
     def update_status(self):
         """
-        Update payment status from Stripe with row-level locking.
+        Update payment status from gateway with row-level locking.
 
         Returns early without error if payment is already paid (idempotent).
         """
+        from instagram.models import StoryCreditPayment  # noqa: PLC0415
+        from payments.gateways.factory import PaymentGatewayFactory  # noqa: PLC0415
 
         # Acquire a row-level lock on this payment instance
         payment = Payment.objects.select_for_update().get(pk=self.pk)
@@ -82,33 +82,15 @@ class Payment(models.Model):
             )
             return
 
-        if payment.reference_type == Payment.REFERENCE_STRIPE:
-            self.handle_stripe_payment(payment)
-        return
+        # Get the appropriate gateway
+        gateway = PaymentGatewayFactory.get_gateway(payment.reference_type)
 
-    def handle_stripe_payment(self, payment):
-        from instagram.models import StoryCreditPayment  # noqa: PLC0415
+        # Retrieve payment status
+        status_data = gateway.retrieve_payment_status(payment.reference)
 
-        # Get Stripe settings
-        stripe_setting = StripeSetting.get_solo()
-        stripe_secret_key = stripe_setting.api_key
-
-        # Validate Stripe settings
-        if not stripe_secret_key:
-            msg = "Stripe secret key is not set"
-            raise ValueError(msg)
-
-        # Set Stripe API key
-        stripe.api_key = stripe_secret_key
-
-        # Retrieve payment session from Stripe
-        session = stripe.checkout.Session.retrieve(
-            payment.reference,
-        )
-
-        # Update payment status
-        payment.status = session.payment_status
-        payment.raw_data = session.to_dict()
+        # Update payment
+        payment.status = status_data["status"]
+        payment.raw_data = status_data["raw_data"]
         payment.save()
 
         logger.info(
@@ -117,10 +99,17 @@ class Payment(models.Model):
             payment.status,
         )
 
+        # Process payment if paid
         if payment.status == Payment.STATUS_PAID:
-            metadata = session.metadata
-            StoryCreditPayment.create_record(
-                instagram_user_id=metadata.get("instagram_user_id"),
-                credit=int(metadata.get("story_credit_quantity")),
-                payment_id=payment.id,
-            )
+            metadata = status_data.get("metadata", {})
+
+            if payment.type == Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT:
+                StoryCreditPayment.create_record(
+                    instagram_user_id=metadata.get("target")
+                    or metadata.get("instagram_user_id"),
+                    credit=int(
+                        metadata.get("quantity")
+                        or metadata.get("story_credit_quantity"),
+                    ),
+                    payment_id=payment.id,
+                )
