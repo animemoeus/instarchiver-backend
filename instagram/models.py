@@ -152,10 +152,10 @@ class User(models.Model):
             # Fetch stories from Instagram API
             response = fetch_user_stories_by_username(self.username)
 
-            # Check for errors in the response
-            if response.get("data") and not response["data"].get("status"):
-                error_message = response["data"].get(
-                    "errorMessage",
+            # Check for errors in the response (v2 API uses 'code' field)
+            if response.get("code") != 200:  # noqa: PLR2004
+                error_message = response.get(
+                    "message",
                     "Unknown API error",
                 )
                 msg = (
@@ -170,7 +170,7 @@ class User(models.Model):
 
                 raise Exception(msg)  # noqa: TRY002, TRY301
 
-            # Extract stories data
+            # Extract stories data from v2 API response
             stories_data = response.get("data", {}).get("data", {}).get("items", [])
             updated_stories = []
 
@@ -178,15 +178,15 @@ class User(models.Model):
             for story_data in stories_data:
                 story_id = story_data.get("id")
 
-                # Create or update story
+                # Create or update story with v2 API field names
                 story, _ = Story.objects.get_or_create(
                     story_id=story_id,
                     defaults={
                         "story_id": story_id,
                         "user": self,
-                        "thumbnail_url": story_data.get("thumbnail_url_original"),
-                        "media_url": story_data.get("video_url_original")
-                        or story_data.get("thumbnail_url_original"),
+                        "thumbnail_url": story_data.get("thumbnail_url"),
+                        "media_url": story_data.get("video_url")
+                        or story_data.get("thumbnail_url"),
                         "story_created_at": story_data.get("taken_at_date"),
                         "raw_api_data": story_data,
                     },

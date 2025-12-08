@@ -79,7 +79,7 @@ def fetch_user_stories_by_username(username: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/web_app/fetch_user_stories_by_username"
+    endpoint = "/api/v1/instagram/v2/fetch_user_stories"
     params = {"username": username}
 
     logger.info("Fetching stories for username: %s", username)
