@@ -25,3 +25,23 @@ class User(AbstractUser):
 
         """
         return reverse("users:detail", kwargs={"username": self.username})
+
+    # Unfold admin full name
+    def get_full_name(self) -> str:
+        """Get full name of the user.
+
+        Returns:
+            str: Full name of the user.
+
+        """
+        return self.name.strip()
+
+    # Unfold admin avatar url
+    def avatar_url(self) -> str:
+        """Get avatar URL of the user.
+
+        Returns:
+            str: Avatar URL of the user.
+
+        """
+        return self.photo_url or None
