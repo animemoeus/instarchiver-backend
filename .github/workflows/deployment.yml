@@ -9,6 +9,23 @@ jobs:
   Deploying:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v6
+
+      - name: Extract Tag Name
+        id: tag
+        run: echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          release_name: ${{ steps.tag.outputs.name }}
+          draft: false
+          prerelease: false
+
       - name: Executing Remote SSH Commands Using Password
         uses: appleboy/ssh-action@master
         with:
