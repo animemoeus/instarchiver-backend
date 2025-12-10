@@ -37,11 +37,11 @@ class User(AbstractUser):
         return self.name.strip()
 
     # Unfold admin avatar url
-    def avatar_url(self) -> str:
+    def avatar_url(self) -> str | None:
         """Get avatar URL of the user.
 
         Returns:
-            str: Avatar URL of the user.
+            str | None: Avatar URL of the user, or None if not set.
 
         """
         return self.photo_url or None
