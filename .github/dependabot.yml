@@ -9,10 +9,6 @@ updates:
     # Every weekday
     schedule:
       interval: 'daily'
-    groups:
-      github-actions:
-        patterns:
-          - '*'
 
   # Enable version updates for Docker
   - package-ecosystem: 'docker'
@@ -30,10 +26,6 @@ updates:
         update-types:
           - 'version-update:semver-major'
           - 'version-update:semver-minor'
-    groups:
-      docker-python:
-        patterns:
-          - '*'
 
 
   - package-ecosystem: 'docker'
@@ -56,8 +48,3 @@ updates:
     # Every weekday
     schedule:
       interval: 'daily'
-    groups:
-      python:
-        update-types:
-          - 'minor'
-          - 'patch'
