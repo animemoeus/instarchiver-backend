@@ -9,6 +9,8 @@ from unfold.admin import ModelAdmin
 from unfold.decorators import action
 
 from .models import Story
+from .models import StoryCredit
+from .models import StoryCreditPayment
 from .models import User
 from .models import UserUpdateStoryLog
 
@@ -199,6 +201,78 @@ class StoryAdmin(ModelAdmin):
                     "raw_api_data",
                 ),
                 "classes": ["tab"],
+            },
+        ),
+    )
+    ordering = ["-created_at"]
+
+
+@admin.register(StoryCredit)
+class StoryCreditAdmin(SimpleHistoryAdmin, ModelAdmin):
+    list_display = [
+        "user",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    list_filter = [
+        "created_at",
+        "updated_at",
+    ]
+    search_fields = ["user__username"]
+    readonly_fields = [
+        "user",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    ("user", "credit"),
+                    ("created_at", "updated_at"),
+                ),
+            },
+        ),
+    )
+    ordering = ["-created_at"]
+
+
+@admin.register(StoryCreditPayment)
+class StoryCreditPaymentAdmin(ModelAdmin):
+    list_display = [
+        "story_credit",
+        "payment",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    list_filter = [
+        "created_at",
+        "updated_at",
+    ]
+    search_fields = [
+        "story_credit__user__username",
+        "payment__reference",
+    ]
+    readonly_fields = [
+        "story_credit",
+        "payment",
+        "credit",
+        "created_at",
+        "updated_at",
+    ]
+    fieldsets = (
+        (
+            "General",
+            {
+                "fields": (
+                    ("story_credit", "payment"),
+                    "credit",
+                    ("created_at", "updated_at"),
+                ),
             },
         ),
     )
