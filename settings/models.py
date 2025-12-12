@@ -120,6 +120,18 @@ class StripeSetting(SingletonModel):
         blank=True,
         help_text="Stripe Webhook Secret",
     )
+    success_url = models.URLField(
+        max_length=1000,
+        default="https://instarchiver.com/success",
+        blank=True,
+        help_text="URL to redirect to after successful payment",
+    )
+    cancel_url = models.URLField(
+        max_length=1000,
+        default="https://instarchiver.com/cancel",
+        blank=True,
+        help_text="URL to redirect to after cancelled payment",
+    )
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
