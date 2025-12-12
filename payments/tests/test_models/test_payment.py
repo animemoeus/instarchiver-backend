@@ -172,8 +172,8 @@ class PaymentModelTest(TestCase):
 class PaymentUpdateStatusTest(TestCase):
     """Test suite for the Payment.update_status method."""
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_success(self, mock_get_solo, mock_stripe_retrieve):
         """Test successful status update from Stripe."""
         # Setup
@@ -204,8 +204,8 @@ class PaymentUpdateStatusTest(TestCase):
         assert payment.raw_data["payment_status"] == "paid"
         mock_stripe_retrieve.assert_called_once_with(payment.reference)
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_idempotent_for_paid_payments(
         self,
         mock_get_solo,
@@ -230,7 +230,7 @@ class PaymentUpdateStatusTest(TestCase):
         payment.refresh_from_db()
         assert payment.status == Payment.STATUS_PAID
 
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_raises_error_when_no_api_key(self, mock_get_solo):
         """Test that update_status raises ValueError when Stripe API key is not set."""
         # Setup
@@ -245,10 +245,10 @@ class PaymentUpdateStatusTest(TestCase):
         with pytest.raises(ValueError) as context:  # noqa: PT011
             payment.update_status()
 
-        assert "Stripe secret key is not set" in str(context.value)
+        assert "Stripe API key is not configured" in str(context.value)
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_with_row_level_locking(
         self,
         mock_get_solo,
@@ -280,8 +280,8 @@ class PaymentUpdateStatusTest(TestCase):
         payment.refresh_from_db()
         assert payment.status == "paid"
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_updates_raw_data(self, mock_get_solo, mock_stripe_retrieve):
         """Test that update_status updates the raw_data field."""
         # Setup
@@ -316,8 +316,8 @@ class PaymentUpdateStatusTest(TestCase):
         assert payment.raw_data == new_session_data
         assert payment.raw_data["customer_email"] == "test@example.com"
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_from_unpaid_to_processing(
         self,
         mock_get_solo,
@@ -348,8 +348,8 @@ class PaymentUpdateStatusTest(TestCase):
         payment.refresh_from_db()
         assert payment.status == "processing"
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_from_unpaid_to_failed(
         self,
         mock_get_solo,
@@ -380,8 +380,8 @@ class PaymentUpdateStatusTest(TestCase):
         payment.refresh_from_db()
         assert payment.status == "failed"
 
-    @patch("payments.models.payments.stripe.checkout.Session.retrieve")
-    @patch("payments.models.payments.StripeSetting.get_solo")
+    @patch("payments.gateways.stripe.stripe.checkout.Session.retrieve")
+    @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_update_status_sets_stripe_api_key(
         self,
         mock_get_solo,
@@ -404,7 +404,7 @@ class PaymentUpdateStatusTest(TestCase):
         mock_stripe_retrieve.return_value = mock_session
 
         # Execute
-        with patch("payments.models.payments.stripe") as mock_stripe:
+        with patch("payments.gateways.stripe.stripe") as mock_stripe:
             mock_stripe.checkout.Session.retrieve.return_value = mock_session
             payment.update_status()
 

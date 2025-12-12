@@ -23,6 +23,8 @@ class StripePaymentGateway(PaymentGatewayBase):
             raise ValueError(msg)
         stripe.api_key = stripe_settings.api_key
         self.webhook_secret = stripe_settings.webhook_secret
+        self.success_url = stripe_settings.success_url
+        self.cancel_url = stripe_settings.cancel_url
 
     def create_checkout_session(
         self,
@@ -57,8 +59,8 @@ class StripePaymentGateway(PaymentGatewayBase):
             payment_method_types=["card"],
             line_items=line_items,
             mode="payment",
-            success_url=kwargs.get("success_url", "https://instarchiver.com/success"),
-            cancel_url=kwargs.get("cancel_url", "https://instarchiver.com/cancel"),
+            success_url=kwargs.get("success_url", self.success_url),
+            cancel_url=kwargs.get("cancel_url", self.cancel_url),
             metadata=metadata,
         )
 
@@ -94,8 +96,11 @@ class StripePaymentGateway(PaymentGatewayBase):
                 secret=self.webhook_secret,
             )
             return True  # noqa: TRY300
+        except stripe.error.SignatureVerificationError as e:
+            logger.warning("Stripe webhook signature validation failed: %s", str(e))
+            return False
         except Exception:
-            logger.exception("Stripe webhook signature validation failed")
+            logger.exception("Unexpected error during Stripe webhook signature validation")
             return False
 
     def process_webhook_event(self, event_data: dict[str, Any]) -> dict[str, Any]:
