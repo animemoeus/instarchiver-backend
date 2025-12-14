@@ -587,3 +587,85 @@ def story_generate_blur_data_url(self, story_id: str) -> dict:
             "story_id": story_id,
             "attempts": self.request.retries + 1,
         }
+
+
+@shared_task
+def auto_generate_story_blur_data_urls():
+    """
+    Automatically generate blur data URLs for stories that don't have them yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    from .models import Story  # noqa: PLC0415
+
+    try:
+        # Get all stories without blur_data_url
+        stories = Story.objects.filter(blur_data_url="")
+        total_stories = stories.count()
+
+        if total_stories == 0:
+            logger.info("No stories found without blur data URL")
+            return {
+                "success": True,
+                "message": "No stories to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting blur data URL generation for %d stories",
+            total_stories,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for story in stories:
+            try:
+                # Queue the blur data URL generation task
+                task_result = story_generate_blur_data_url.delay(story.story_id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued blur data URL generation for "
+                    "story: %s (task: %s)",
+                    story.story_id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue blur data URL generation for "
+                    f"story {story.story_id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing blur data URL generation for story %s",
+                    story.story_id,
+                )
+
+        logger.info(
+            "Blur data URL generation queuing completed: "
+            "%d queued, %d errors out of %d total stories",
+            queued_count,
+            error_count,
+            total_stories,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Blur data URL generation tasks queued",
+            "total": total_stories,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in auto_generate_story_blur_data_urls")
+        return {"success": False, "error": f"Critical error: {e!s}"}
