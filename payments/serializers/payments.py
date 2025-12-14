@@ -2,7 +2,8 @@ from rest_framework import serializers
 
 from authentication.serializers import UserSerializer
 from instagram.models import User as InstagramUser
-from payments.models.payments import Payment
+from payments.models import GatewayOption
+from payments.models import Payment
 
 
 class PaymentListSerializer(serializers.ModelSerializer):
@@ -35,3 +36,12 @@ class PaymentCreateSerializer(serializers.Serializer):
                 )
 
         return data
+
+
+class GatewayOptionsListSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GatewayOption
+        fields = [
+            "id",
+            "name",
+        ]

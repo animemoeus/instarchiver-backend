@@ -1,11 +1,14 @@
 from rest_framework import status
+from rest_framework.generics import ListAPIView
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from payments.gateways.factory import PaymentGatewayFactory
+from payments.models import GatewayOption
 from payments.models import Payment
 from payments.paginations import PaymentCursorPagination
+from payments.serializers.payments import GatewayOptionsListSerializer
 from payments.serializers.payments import PaymentCreateSerializer
 from payments.serializers.payments import PaymentListSerializer
 
@@ -78,3 +81,11 @@ class PaymentListCreateAPIView(ListCreateAPIView):
                 {"error": "Failed to create payment"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class GatewayOptionsListAPIView(ListAPIView):
+    permission_classes = []
+    serializer_class = GatewayOptionsListSerializer
+
+    def get_queryset(self):
+        return GatewayOption.objects.filter(is_active=True)
