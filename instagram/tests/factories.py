@@ -33,8 +33,9 @@ class StoryFactory(DjangoModelFactory):
 
     story_id = Faker("numerify", text="###################")
     user = SubFactory(InstagramUserFactory)
-    thumbnail_url = Faker("numerify", text="https://placecats.com/##/##")
-    media_url = Faker("numerify", text="https://placecats.com/##/##")
+    thumbnail_url = "https://cdn.instarchiver.net/users/arter_tendean/stories/6a2d71ab-80a5-477e-83a0-b4ea811816ff.jpg"
+    blur_data_url = Faker("pystr", max_chars=100)
+    media_url = "https://cdn.instarchiver.net/users/arter_tendean/stories/214d3932-ab14-45c2-874d-c5c65cdaf66e.mp4"
     story_created_at = Faker("date_time", tzinfo=timezone.get_current_timezone())
 
     class Meta:
