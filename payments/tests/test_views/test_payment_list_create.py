@@ -10,6 +10,7 @@ from rest_framework.test import APIClient
 from core.users.tests.factories import UserFactory
 from instagram.tests.factories import InstagramUserFactory
 from payments.models import Payment
+from payments.tests.factories import GatewayOptionFactory
 from payments.tests.factories import PaymentFactory
 
 
@@ -146,6 +147,11 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         self.url = reverse("payments:payment-list-create")
         self.user = UserFactory()
         self.instagram_user = InstagramUserFactory()
+        # Create active Stripe gateway option for payment creation
+        self.gateway_option = GatewayOptionFactory(
+            name=Payment.REFERENCE_STRIPE,
+            is_active=True,
+        )
 
     def test_create_payment_unauthenticated(self):
         """Test that unauthenticated users cannot create payments."""

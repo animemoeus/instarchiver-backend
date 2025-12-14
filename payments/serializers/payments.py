@@ -37,6 +37,13 @@ class PaymentCreateSerializer(serializers.Serializer):
 
         return data
 
+    def validate_payment_gateway(self, value):
+        if not GatewayOption.objects.filter(name=value, is_active=True).exists():
+            msg = "Gateway option not found"
+            raise serializers.ValidationError(msg)
+
+        return value
+
 
 class GatewayOptionsListSerializer(serializers.ModelSerializer):
     class Meta:
