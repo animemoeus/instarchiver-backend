@@ -241,6 +241,7 @@ class Story(models.Model):
     story_id = models.CharField(unique=True, max_length=50, primary_key=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     thumbnail_url = models.URLField(max_length=2500, blank=True)
+    blur_data_url = models.TextField(blank=True)
     media_url = models.URLField(max_length=2500, blank=True)
 
     thumbnail = models.ImageField(
@@ -264,6 +265,15 @@ class Story(models.Model):
 
     def __str__(self):
         return f"{self.user.username} - {self.story_id}"
+
+    def generate_blur_data_url_task(self):
+        """
+        Generates a blurred data URL from the media_url using a Celery task.
+        This method queues the blur data URL generation as a background task.
+        """
+        from .tasks import story_generate_blur_data_url  # noqa: PLC0415
+
+        story_generate_blur_data_url.delay(self.story_id)
 
 
 class UserUpdateStoryLog(models.Model):
