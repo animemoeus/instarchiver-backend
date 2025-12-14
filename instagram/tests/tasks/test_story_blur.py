@@ -15,7 +15,7 @@ pytestmark = pytest.mark.django_db
 class TestStoryGenerateBlurDataUrl:
     """Tests for the story_generate_blur_data_url Celery task."""
 
-    @patch("instagram.tasks.generate_blur_data_url_from_image_url")
+    @patch("instagram.utils.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_success(
         self,
         mock_generate_blur,
@@ -59,7 +59,7 @@ class TestStoryGenerateBlurDataUrl:
         assert result.result["success"] is False
         assert "not found" in result.result["error"].lower()
 
-    @patch("instagram.tasks.generate_blur_data_url_from_image_url")
+    @patch("instagram.utils.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_saves_to_model(
         self,
         mock_generate_blur,
@@ -83,7 +83,7 @@ class TestStoryGenerateBlurDataUrl:
         story.refresh_from_db()
         assert story.blur_data_url == test_blur_data
 
-    @patch("instagram.tasks.generate_blur_data_url_from_image_url")
+    @patch("instagram.utils.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_network_error_retry(
         self,
         mock_generate_blur,

@@ -11,7 +11,7 @@ pytestmark = pytest.mark.django_db
 class TestStoryModel:
     """Tests for the Story model methods."""
 
-    @patch("instagram.models.story_generate_blur_data_url.delay")
+    @patch("instagram.tasks.story_generate_blur_data_url.delay")
     def test_generate_blur_data_url_task_queues_task(self, mock_task_delay):
         """Test that generate_blur_data_url_task queues a Celery task."""
         # Create a test story
@@ -28,7 +28,7 @@ class TestStoryModel:
         # Verify the task was queued
         mock_task_delay.assert_called_once()
 
-    @patch("instagram.models.story_generate_blur_data_url.delay")
+    @patch("instagram.tasks.story_generate_blur_data_url.delay")
     def test_generate_blur_data_url_task_passes_story_id(
         self,
         mock_task_delay,
@@ -48,7 +48,7 @@ class TestStoryModel:
         # Verify the task was called with the correct story_id
         mock_task_delay.assert_called_once_with(story.story_id)
 
-    @patch("instagram.models.story_generate_blur_data_url.delay")
+    @patch("instagram.tasks.story_generate_blur_data_url.delay")
     def test_generate_blur_data_url_task_multiple_calls(
         self,
         mock_task_delay,
