@@ -30,9 +30,9 @@ class PaymentListCreateAPIView(ListCreateAPIView):
         serializer.is_valid(raise_exception=True)
 
         # Extract validated data
-        gateway_type = serializer.validated_data.get("using")
-        payment_type = serializer.validated_data.get("type")
-        target = serializer.validated_data.get("target")
+        gateway_type = serializer.validated_data.get("payment_gateway")
+        payment_type = serializer.validated_data.get("payment_type")
+        instagram_user_id = serializer.validated_data.get("instagram_user_id")
         quantity = serializer.validated_data.get("quantity")
 
         try:
@@ -43,7 +43,7 @@ class PaymentListCreateAPIView(ListCreateAPIView):
             payment_data = gateway.create_checkout_session(
                 user_id=request.user.id,
                 payment_type=payment_type,
-                target=target,
+                target=instagram_user_id,
                 quantity=quantity,
             )
 

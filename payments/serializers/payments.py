@@ -14,23 +14,23 @@ class PaymentListSerializer(serializers.ModelSerializer):
 
 
 class PaymentCreateSerializer(serializers.Serializer):
-    using = serializers.ChoiceField(choices=Payment.REFERENCE_CHOICES)
-    type = serializers.ChoiceField(choices=Payment.TYPE_CHOICES)
-    target = serializers.CharField()
+    payment_gateway = serializers.ChoiceField(choices=Payment.REFERENCE_CHOICES)
+    payment_type = serializers.ChoiceField(choices=Payment.TYPE_CHOICES)
+    instagram_user_id = serializers.CharField()
     quantity = serializers.IntegerField(min_value=1)
 
     def validate(self, data):
-        payment_type = data.get("type")
-        target = data.get("target")
+        payment_type = data.get("payment_type")
+        instagram_user_id = data.get("instagram_user_id")
 
         if payment_type in (
             Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
             Payment.TYPE_INSTAGRAM_USER_PROFILE_CREDIT,
         ):
-            if not InstagramUser.objects.filter(uuid=target).exists():
+            if not InstagramUser.objects.filter(uuid=instagram_user_id).exists():
                 raise serializers.ValidationError(
                     {
-                        "target": "Instagram user not found",
+                        "instagram_user_id": "Instagram user not found",
                     },
                 )
 

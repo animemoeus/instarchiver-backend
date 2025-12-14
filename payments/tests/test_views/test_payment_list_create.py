@@ -150,9 +150,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
     def test_create_payment_unauthenticated(self):
         """Test that unauthenticated users cannot create payments."""
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
@@ -186,9 +186,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_stripe_create.return_value = mock_session
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
@@ -239,9 +239,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_stripe_create.return_value = mock_session
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_PROFILE_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_PROFILE_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 5,
         }
 
@@ -258,57 +258,57 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
+            "payment_gateway": Payment.REFERENCE_STRIPE,
             # Missing type, target, quantity
         }
 
         response = self.client.post(self.url, data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "type" in response.data
-        assert "target" in response.data
+        assert "payment_type" in response.data
+        assert "instagram_user_id" in response.data
         assert "quantity" in response.data
 
-    def test_create_payment_invalid_using_choice(self):
-        """Test that invalid 'using' choice returns validation error."""
+    def test_create_payment_invalid_payment_gateway_choice(self):
+        """Test that invalid 'payment_gateway' choice returns validation error."""
         self.client.force_authenticate(user=self.user)
 
         data = {
-            "using": "INVALID_GATEWAY",
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": "INVALID_GATEWAY",
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
         response = self.client.post(self.url, data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "using" in response.data
+        assert "payment_gateway" in response.data
 
-    def test_create_payment_invalid_type_choice(self):
-        """Test that invalid 'type' choice returns validation error."""
+    def test_create_payment_invalid_payment_type_choice(self):
+        """Test that invalid 'payment_type' choice returns validation error."""
         self.client.force_authenticate(user=self.user)
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": "INVALID_TYPE",
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": "INVALID_TYPE",
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
         response = self.client.post(self.url, data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "type" in response.data
+        assert "payment_type" in response.data
 
     def test_create_payment_invalid_quantity(self):
         """Test that quantity less than 1 returns validation error."""
         self.client.force_authenticate(user=self.user)
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 0,
         }
 
@@ -322,17 +322,17 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         self.client.force_authenticate(user=self.user)
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": "00000000-0000-0000-0000-000000000000",
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": "00000000-0000-0000-0000-000000000000",
             "quantity": 10,
         }
 
         response = self.client.post(self.url, data, format="json")
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
-        assert "target" in response.data
-        assert "Instagram user not found" in str(response.data["target"])
+        assert "instagram_user_id" in response.data
+        assert "Instagram user not found" in str(response.data["instagram_user_id"])
 
     @patch("payments.gateways.stripe.StripeSetting.get_solo")
     def test_create_payment_gateway_error(self, mock_get_solo):
@@ -345,9 +345,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_get_solo.return_value = mock_setting
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
@@ -375,9 +375,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_stripe_create.side_effect = Exception("Stripe API error")
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
@@ -413,9 +413,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_stripe_create.return_value = mock_session
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 25,
         }
 
@@ -457,9 +457,9 @@ class PaymentListCreateAPIViewCreateTest(TestCase):
         mock_stripe_create.return_value = mock_session
 
         data = {
-            "using": Payment.REFERENCE_STRIPE,
-            "type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
-            "target": str(self.instagram_user.uuid),
+            "payment_gateway": Payment.REFERENCE_STRIPE,
+            "payment_type": Payment.TYPE_INSTAGRAM_USER_STORY_CREDIT,
+            "instagram_user_id": str(self.instagram_user.uuid),
             "quantity": 10,
         }
 
