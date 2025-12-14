@@ -4,6 +4,7 @@ from factory import SubFactory
 from factory.django import DjangoModelFactory
 
 from core.users.tests.factories import UserFactory
+from payments.models import GatewayOption
 from payments.models import Payment
 
 
@@ -129,4 +130,18 @@ class PaymentFactory(DjangoModelFactory):
                     "mode": "payment",
                 },
             ),
+        )
+
+
+class GatewayOptionFactory(DjangoModelFactory):
+    name = Payment.REFERENCE_STRIPE
+    is_active = True
+
+    class Meta:
+        model = GatewayOption
+
+    class Params:
+        # Trait for inactive gateway option
+        inactive = factory.Trait(
+            is_active=False,
         )

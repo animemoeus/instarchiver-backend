@@ -126,6 +126,16 @@ UNFOLD = {
                         "icon": "history",
                         "link": "/admin/instagram/userupdatestorylog/",
                     },
+                    {
+                        "title": "Story Credit",
+                        "icon": "history",
+                        "link": "/admin/instagram/storycredit/",
+                    },
+                    {
+                        "title": "Story Credit Logs",
+                        "icon": "history",
+                        "link": "/admin/instagram/storycreditpayment/",
+                    },
                 ],
             },
             {
@@ -142,6 +152,16 @@ UNFOLD = {
                         "title": "Webhook Logs",
                         "icon": "history",
                         "link": "/admin/payments/webhooklog/",
+                    },
+                    {
+                        "title": "Gateway Options",
+                        "icon": "history",
+                        "link": "/admin/payments/gatewayoption/",
+                    },
+                    {
+                        "title": "Payment Settings",
+                        "icon": "history",
+                        "link": "/admin/payments/paymentsetting/",
                     },
                 ],
             },
