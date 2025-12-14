@@ -1,14 +1,12 @@
 from unittest.mock import Mock
 from unittest.mock import patch
 
-import pytest
+from django.test import TestCase
 
 from instagram.tests.factories import StoryFactory
 
-pytestmark = pytest.mark.django_db
 
-
-class TestStoryModel:
+class TestStoryModel(TestCase):
     """Tests for the Story model methods."""
 
     @patch("instagram.tasks.story_generate_blur_data_url.delay")

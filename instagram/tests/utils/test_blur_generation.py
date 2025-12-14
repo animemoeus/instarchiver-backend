@@ -5,14 +5,13 @@ from unittest.mock import patch
 
 import pytest
 import requests
+from django.test import TestCase
 from PIL import Image as PILImage
 
 from instagram.utils import generate_blur_data_url_from_image_url
 
-pytestmark = pytest.mark.django_db
 
-
-class TestGenerateBlurDataUrlFromImageUrl:
+class TestGenerateBlurDataUrlFromImageUrl(TestCase):
     """Tests for the generate_blur_data_url_from_image_url utility function."""
 
     @patch("instagram.utils.requests.get")
