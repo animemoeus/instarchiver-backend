@@ -1,8 +1,10 @@
 import logging
 import warnings
+from datetime import timedelta
 
 import stripe
 from django.db import transaction
+from django.utils import timezone
 
 from core.users.models import User
 from payments.models.payments import Payment
@@ -77,6 +79,7 @@ def stripe_create_instagram_user_story_credits_payment(
             "instagram_user_id": instagram_user_id,
             "story_credit_quantity": story_credit_quantity,
         },
+        expires_at=timezone.localdate() + timedelta(hours=1),
     )
 
     payment.reference = checkout_session.id

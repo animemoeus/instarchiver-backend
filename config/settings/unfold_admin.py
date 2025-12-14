@@ -153,6 +153,16 @@ UNFOLD = {
                         "icon": "history",
                         "link": "/admin/payments/webhooklog/",
                     },
+                    {
+                        "title": "Gateway Options",
+                        "icon": "history",
+                        "link": "/admin/payments/gatewayoption/",
+                    },
+                    {
+                        "title": "Payment Settings",
+                        "icon": "history",
+                        "link": "/admin/payments/paymentsetting/",
+                    },
                 ],
             },
             {
