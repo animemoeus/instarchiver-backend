@@ -1,8 +1,11 @@
 from django.utils import timezone
 from factory import Faker
+from factory import LazyFunction
 from factory import SubFactory
 from factory.django import DjangoModelFactory
 
+from instagram.models import Post
+from instagram.models import PostMedia
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 
@@ -41,3 +44,38 @@ class StoryFactory(DjangoModelFactory):
     class Meta:
         model = Story
         django_get_or_create = ["story_id"]
+
+
+class PostFactory(DjangoModelFactory):
+    """Factory for creating Post instances for testing."""
+
+    id = Faker("numerify", text="###################")
+    user = SubFactory(InstagramUserFactory)
+    variant = Faker(
+        "random_element",
+        elements=[Post.POST_VARIANT_NORMAL, Post.POST_VARIANT_CAUROSEL],
+    )
+    thumbnail_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/6a2d71ab-80a5-477e-83a0-b4ea811816ff.jpg"
+    blur_data_url = Faker("pystr", max_chars=100)
+    raw_data = LazyFunction(
+        lambda: {
+            "caption": "Test caption",
+            "like_count": 100,
+            "comment_count": 10,
+        },
+    )
+
+    class Meta:
+        model = Post
+        django_get_or_create = ["id"]
+
+
+class PostMediaFactory(DjangoModelFactory):
+    """Factory for creating PostMedia instances for testing."""
+
+    post = SubFactory(PostFactory)
+    thumbnail_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/6a2d71ab-80a5-477e-83a0-b4ea811816ff.jpg"
+    media_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/214d3932-ab14-45c2-874d-c5c65cdaf66e.mp4"
+
+    class Meta:
+        model = PostMedia
