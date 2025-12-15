@@ -5,6 +5,8 @@ import requests
 from celery import shared_task
 from django.core.files.base import ContentFile
 
+from .models import Post
+from .models import PostMedia
 from .models import User
 
 logger = logging.getLogger(__name__)
@@ -669,3 +671,204 @@ def auto_generate_story_blur_data_urls():
     except Exception as e:
         logger.exception("Critical error in auto_generate_story_blur_data_urls")
         return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def download_post_thumbnail_from_url(self, post_id):
+    """
+    Download post thumbnail from URL if content has changed.
+    Uses hash comparison to detect actual image content changes.
+
+    Args:
+        post_id (str): ID of the post to download thumbnail for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        logger.exception("Post with ID %s not found", post_id)
+        return {"success": False, "error": "Post not found"}
+
+    if not post.thumbnail_url:
+        logger.info("No thumbnail URL for post %s", post_id)
+        return {"success": False, "error": "No thumbnail URL"}
+
+    try:
+        # Download image from URL
+        response = requests.get(post.thumbnail_url, timeout=30)
+        response.raise_for_status()
+
+        # Calculate hash of downloaded image content
+        new_image_content = response.content
+        new_image_hash = hashlib.sha256(new_image_content).hexdigest()
+
+        # Get hash of existing thumbnail if it exists
+        existing_image_hash = None
+        if post.thumbnail:
+            try:
+                with post.thumbnail.open("rb") as f:
+                    existing_content = f.read()
+                    existing_image_hash = hashlib.sha256(existing_content).hexdigest()
+            except OSError as e:
+                logger.warning(
+                    "Could not read existing thumbnail for post %s: %s",
+                    post_id,
+                    e,
+                )
+
+        # Compare hashes - only update if different
+        if existing_image_hash == new_image_hash:
+            logger.info("Thumbnail unchanged for post %s", post_id)
+            return {"success": True, "message": "No changes detected"}
+
+        # Save new image
+        filename = f"post_{post_id}_thumbnail.jpg"
+
+        # Save the new image
+        post.thumbnail.save(
+            filename,
+            ContentFile(new_image_content),
+            save=False,
+        )
+
+        # Update using queryset to avoid triggering signal again
+        Post.objects.filter(id=post.id).update(
+            thumbnail=post.thumbnail.name,
+        )
+
+        logger.info("Thumbnail downloaded for post %s", post_id)
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Thumbnail downloaded",
+            "old_hash": existing_image_hash,
+            "new_hash": new_image_hash,
+        }
+
+    except (requests.RequestException, OSError) as e:
+        # Retryable errors: network issues, S3 timeouts, temporary file access issues
+        logger.warning(
+            "Retryable error downloading thumbnail for post %s (attempt %s/%s): %s",
+            post_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            e,
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries)) from e
+
+        logger.exception(
+            "Max retries exceeded for thumbnail download for post %s",
+            post_id,
+        )
+        return {"success": False, "error": f"Max retries exceeded: {e!s}"}
+
+    except Exception as e:
+        # Non-retryable errors: permanent failures
+        logger.exception(
+            "Permanent error downloading thumbnail for post %s",
+            post_id,
+        )
+        return {"success": False, "error": f"Permanent error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def download_post_media_thumbnail_from_url(self, post_media_id):
+    """
+    Download post media thumbnail from URL if content has changed.
+    Uses hash comparison to detect actual image content changes.
+
+    Args:
+        post_media_id (int): ID of the post media to download thumbnail for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post_media = PostMedia.objects.get(id=post_media_id)
+    except PostMedia.DoesNotExist:
+        logger.exception("PostMedia with ID %s not found", post_media_id)
+        return {"success": False, "error": "PostMedia not found"}
+
+    if not post_media.thumbnail_url:
+        logger.info("No thumbnail URL for post media %s", post_media_id)
+        return {"success": False, "error": "No thumbnail URL"}
+
+    try:
+        # Download image from URL
+        response = requests.get(post_media.thumbnail_url, timeout=30)
+        response.raise_for_status()
+
+        # Calculate hash of downloaded image content
+        new_image_content = response.content
+        new_image_hash = hashlib.sha256(new_image_content).hexdigest()
+
+        # Get hash of existing thumbnail if it exists
+        existing_image_hash = None
+        if post_media.thumbnail:
+            try:
+                with post_media.thumbnail.open("rb") as f:
+                    existing_content = f.read()
+                    existing_image_hash = hashlib.sha256(existing_content).hexdigest()
+            except OSError as e:
+                logger.warning(
+                    "Could not read existing thumbnail for post media %s: %s",
+                    post_media_id,
+                    e,
+                )
+
+        # Compare hashes - only update if different
+        if existing_image_hash == new_image_hash:
+            logger.info("Thumbnail unchanged for post media %s", post_media_id)
+            return {"success": True, "message": "No changes detected"}
+
+        # Save new image
+        filename = f"post_media_{post_media_id}_thumbnail.jpg"
+
+        # Save the new image
+        post_media.thumbnail.save(
+            filename,
+            ContentFile(new_image_content),
+            save=False,
+        )
+
+        # Update using queryset to avoid triggering signal again
+        PostMedia.objects.filter(id=post_media.id).update(
+            thumbnail=post_media.thumbnail.name,
+        )
+
+        logger.info("Thumbnail downloaded for post media %s", post_media_id)
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Thumbnail downloaded",
+            "old_hash": existing_image_hash,
+            "new_hash": new_image_hash,
+        }
+
+    except (requests.RequestException, OSError) as e:
+        # Retryable errors: network issues, S3 timeouts, temporary file access issues
+        logger.warning(
+            "Retryable error downloading thumbnail for post media %s "
+            "(attempt %s/%s): %s",
+            post_media_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            e,
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries)) from e
+
+        logger.exception(
+            "Max retries exceeded for thumbnail download for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Max retries exceeded: {e!s}"}
+
+    except Exception as e:
+        # Non-retryable errors: permanent failures
+        logger.exception(
+            "Permanent error downloading thumbnail for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Permanent error: {e!s}"}

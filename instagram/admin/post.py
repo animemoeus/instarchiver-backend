@@ -47,9 +47,11 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
     ]
     readonly_fields = [
         "id",
+        "user",
         "created_at",
         "updated_at",
         "thumbnail_url",
+        "raw_data",
     ]
     fieldsets = (
         (
@@ -69,8 +71,8 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
             "Metadata",
             {
                 "fields": (
-                    "created_at",
-                    "updated_at",
+                    ("created_at", "updated_at"),
+                    "raw_data",
                 ),
                 "classes": ["tab"],
             },

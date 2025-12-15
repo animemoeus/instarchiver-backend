@@ -20,4 +20,4 @@ def get_post_media_upload_location(instance, filename):
     # Generate random UUID filename while preserving extension
     file_extension = Path(filename).suffix
     random_filename = str(uuid.uuid4())
-    return f"posts/{instance.post.user.username}/{random_filename}{file_extension}"
+    return f"posts/{instance.user.username}/{random_filename}{file_extension}"
