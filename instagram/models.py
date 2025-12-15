@@ -66,14 +66,22 @@ class User(models.Model):
         return super().delete(*args, **kwargs)
 
     def _extract_api_data_from_username_v2(self, data):
-        """Extract API response data from fetch_user_info_by_username_v2."""
+        """Extract API response data from fetch_user_info_by_username_v2.
+
+        The v2 API returns data in a nested structure with different field names.
+        """
         if not data:
             return
 
-        self.instagram_id = data.get("pk") or self.instagram_id
+        # v2 API uses 'id' or 'instagram_pk' for the Instagram ID
+        instagram_id = data.get("id") or data.get("instagram_pk")
+        self.instagram_id = str(instagram_id) or self.instagram_id
         self.username = data.get("username") or self.username
         self.full_name = data.get("full_name", "")
-        self.original_profile_picture_url = data.get("profile_pic_url", "")
+        # v2 API uses 'profile_pic_url' or 'profile_pic_url_hd'
+        self.original_profile_picture_url = (
+            data.get("profile_pic_url_hd") or data.get("profile_pic_url") or ""
+        )
         self.biography = data.get("biography", "")
         self.is_private = data.get("is_private", False)
         self.is_verified = data.get("is_verified", False)
@@ -112,22 +120,35 @@ class User(models.Model):
         response = fetch_user_info_by_username_v2(self.username)
         api_method = "username_v2"
 
-        # If username API fails and we have instagram_id, try user_id as fallback
-        username_failed = not response.get("data") or not response["data"].get("status")
+        # v2 API uses 'code' field for status (200 = success)
+        username_failed = response.get("code") != 200  # noqa: PLR2004
         if username_failed and self.instagram_id:
             response = fetch_user_info_by_user_id(self.instagram_id)
             api_method = "user_id"
 
-        # Check for errors in the response and throw an exception
-        if response.get("data") and not response["data"].get("status"):
-            msg = "Error fetching data for user %s. %s " % (  # noqa: UP031
-                self.username,
-                response["data"].get("errorMessage", ""),
-            )
-            logger.error(msg)
-            raise Exception(msg)  # noqa: TRY002
+        # Check for errors in the response
+        if api_method == "username_v2":
+            # v2 API uses 'code' field for status
+            if response.get("code") != 200:  # noqa: PLR2004
+                msg = "Error fetching data for user %s. %s" % (  # noqa: UP031
+                    self.username,
+                    response.get("message", "Unknown error"),
+                )
+                logger.error(msg)
+                raise Exception(msg)  # noqa: TRY002
+            # v2 API nests user data in response['data']['data']
+            data = response.get("data", {}).get("data")
+        else:
+            # user_id API uses old structure
+            if response.get("data") and not response["data"].get("status"):
+                msg = "Error fetching data for user %s. %s " % (  # noqa: UP031
+                    self.username,
+                    response["data"].get("errorMessage", ""),
+                )
+                logger.error(msg)
+                raise Exception(msg)  # noqa: TRY002
+            data = response.get("data")
 
-        data = response.get("data")
         self.raw_api_data = data
 
         # Use appropriate extraction method based on which API was called

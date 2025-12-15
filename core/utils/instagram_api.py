@@ -19,7 +19,7 @@ def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/web_app/fetch_user_info_by_username_v2"
+    endpoint = "/api/v1/instagram/v2/fetch_user_info"
     params = {"username": username}
 
     logger.info("Fetching user info for username: %s", username)
@@ -93,4 +93,34 @@ def fetch_user_stories_by_username(username: str) -> dict[str, Any]:
         raise
     else:
         logger.info("Successfully fetched stories for username: %s", username)
+        return data
+
+
+def fetch_user_posts_by_username(username: str) -> dict[str, Any]:
+    """Fetch Instagram user posts by username using Core API v2 endpoint.
+
+    Args:
+        username: Instagram username to fetch posts for
+
+    Returns:
+        Dictionary containing user posts from the API response
+
+    Raises:
+        ImproperlyConfigured: If API settings are not configured
+        requests.RequestException: If the API request fails
+    """
+    endpoint = "/api/v1/instagram/v2/fetch_user_posts"
+    params = {"username": username}
+
+    logger.info("Fetching posts for username: %s", username)
+
+    try:
+        response = make_request("GET", endpoint, params=params)
+        response.raise_for_status()
+        data = response.json()
+    except Exception as e:
+        logger.exception("Failed to fetch posts for username %s: %s", username, e)  # noqa: TRY401
+        raise
+    else:
+        logger.info("Successfully fetched posts for username: %s", username)
         return data
