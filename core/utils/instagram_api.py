@@ -37,7 +37,7 @@ def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
 
 
 def fetch_user_info_by_user_id(user_id: str) -> dict[str, Any]:
-    """Fetch Instagram user information by user ID using Core API endpoint.
+    """Fetch Instagram user information by user ID using Core API v1 endpoint.
 
     Args:
         user_id: Instagram user ID to fetch information for
@@ -49,7 +49,7 @@ def fetch_user_info_by_user_id(user_id: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/web_app/fetch_user_info_by_user_id"
+    endpoint = "/api/v1/instagram/v1/fetch_user_info_by_id"
     params = {"user_id": user_id}
 
     logger.info("Fetching user info for user_id: %s", user_id)
