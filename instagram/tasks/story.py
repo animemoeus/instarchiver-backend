@@ -28,9 +28,9 @@ def story_generate_blur_data_url(self, story_id: str) -> dict:
 
     try:
         # Generate blur data URL using utility function
-        blur_data_url = generate_blur_data_url_from_image_url(
-            story.thumbnail.url or story.thumbnail_url,
-        )
+        # Use thumbnail.url if thumbnail exists, otherwise use thumbnail_url
+        image_url = story.thumbnail.url if story.thumbnail else story.thumbnail_url
+        blur_data_url = generate_blur_data_url_from_image_url(image_url)
 
         # Save to the model
         story.blur_data_url = blur_data_url
