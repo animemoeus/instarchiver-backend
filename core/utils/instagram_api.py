@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 
 
 def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
-    """Fetch Instagram user information by username using Core API v2 endpoint.
+    """Fetch Instagram user information by username using Core API v1 endpoint.
 
     Args:
         username: Instagram username to fetch information for
@@ -19,7 +19,7 @@ def fetch_user_info_by_username_v2(username: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/v2/fetch_user_info"
+    endpoint = "/api/v1/instagram/v1/fetch_user_info_by_username"
     params = {"username": username}
 
     logger.info("Fetching user info for username: %s", username)

@@ -68,26 +68,33 @@ class User(models.Model):
     def _extract_api_data_from_username_v2(self, data):
         """Extract API response data from fetch_user_info_by_username_v2.
 
-        The v2 API returns data in a nested structure with different field names.
+        The v1 API returns data in a nested structure with edge-based counts.
         """
         if not data:
             return
 
-        # v2 API uses 'id' or 'instagram_pk' for the Instagram ID
-        instagram_id = data.get("id") or data.get("instagram_pk")
+        # v1 API uses 'id' for the Instagram ID
+        instagram_id = data.get("id")
         self.instagram_id = str(instagram_id) or self.instagram_id
         self.username = data.get("username") or self.username
         self.full_name = data.get("full_name", "")
-        # v2 API uses 'profile_pic_url' or 'profile_pic_url_hd'
+        # v1 API uses 'profile_pic_url_hd' as primary, fallback to 'profile_pic_url'
         self.original_profile_picture_url = (
             data.get("profile_pic_url_hd") or data.get("profile_pic_url") or ""
         )
         self.biography = data.get("biography", "")
         self.is_private = data.get("is_private", False)
         self.is_verified = data.get("is_verified", False)
-        self.media_count = data.get("media_count", 0)
-        self.follower_count = data.get("follower_count", 0)
-        self.following_count = data.get("following_count", 0)
+
+        # v1 API uses edge structures for counts
+        media_edge = data.get("edge_owner_to_timeline_media", {})
+        self.media_count = media_edge.get("count", 0)
+
+        follower_edge = data.get("edge_followed_by", {})
+        self.follower_count = follower_edge.get("count", 0)
+
+        following_edge = data.get("edge_follow", {})
+        self.following_count = following_edge.get("count", 0)
 
     def _extract_api_data_from_user_id(self, data):
         """Extract API response data from fetch_user_info_by_user_id."""
@@ -128,7 +135,7 @@ class User(models.Model):
 
         # Check for errors in the response
         if api_method == "username_v2":
-            # v2 API uses 'code' field for status
+            # v1 API uses 'code' field for status
             if response.get("code") != 200:  # noqa: PLR2004
                 msg = "Error fetching data for user %s. %s" % (  # noqa: UP031
                     self.username,
@@ -136,8 +143,8 @@ class User(models.Model):
                 )
                 logger.error(msg)
                 raise Exception(msg)  # noqa: TRY002
-            # v2 API nests user data in response['data']['data']
-            data = response.get("data", {}).get("data")
+            # v1 API nests user data in response['data']['data']['user']
+            data = response.get("data", {}).get("data", {}).get("user")
         else:
             # user_id API uses old structure
             if response.get("data") and not response["data"].get("status"):
