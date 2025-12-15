@@ -30,6 +30,7 @@ class InstagramUserListSerializer(ModelSerializer):
     class Meta:
         model = InstagramUser
         exclude = ["original_profile_picture_url", "raw_api_data"]
+        read_only_fields = ["blur_data_url"]
 
 
 class InstagramUserDetailSerializer(ModelSerializer):
@@ -48,6 +49,7 @@ class InstagramUserDetailSerializer(ModelSerializer):
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }
+        read_only_fields = ["blur_data_url"]
 
     def get_auto_update_stories_limit_count(self, obj):
         """Return the count of story update limits (placeholder for now)."""

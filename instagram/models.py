@@ -33,6 +33,7 @@ class User(models.Model):
         blank=True,
         help_text="The original profile picture URL from Instagram",
     )
+    blur_data_url = models.TextField(blank=True)
     biography = models.TextField(blank=True)
     is_private = models.BooleanField(default=False)
     is_verified = models.BooleanField(default=False)
@@ -235,6 +236,15 @@ class User(models.Model):
 
         logger.info("Queuing story update task for user %s", self.username)
         return update_user_stories_from_api.delay(self.uuid)
+
+    def generate_blur_data_url_task(self):
+        """
+        Generates a blurred data URL from the profile picture using a Celery task.
+        This method queues the blur data URL generation as a background task.
+        """
+        from .tasks import user_generate_blur_data_url  # noqa: PLC0415
+
+        user_generate_blur_data_url.delay(self.uuid)
 
 
 class Story(models.Model):

@@ -71,6 +71,10 @@ def update_profile_picture_from_url(self, user_id):
         )
 
         logger.info("Profile picture updated for user %s", user.username)
+
+        # Trigger blur data URL generation
+        user_generate_blur_data_url.delay(str(user.uuid))
+
         return {  # noqa: TRY300
             "success": True,
             "message": "Profile picture updated",
@@ -669,3 +673,104 @@ def auto_generate_story_blur_data_urls():
     except Exception as e:
         logger.exception("Critical error in auto_generate_story_blur_data_urls")
         return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def user_generate_blur_data_url(self, user_id: str) -> dict:
+    """
+    Generate blur data URL for a user's profile picture.
+
+    Args:
+        user_id (str): UUID of the user
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    from .utils import generate_blur_data_url_from_image_url  # noqa: PLC0415
+
+    try:
+        user = User.objects.get(uuid=user_id)
+    except User.DoesNotExist:
+        logger.exception("User with ID %s not found", user_id)
+        return {"success": False, "error": "User not found"}
+
+    try:
+        # Determine image URL: prioritize original_profile_picture_url,
+        # then profile_picture.url
+        image_url = None
+        if user.original_profile_picture_url:
+            image_url = user.original_profile_picture_url
+        elif user.profile_picture:
+            image_url = user.profile_picture.url
+
+        if not image_url:
+            logger.info("No profile picture URL for user %s", user.username)
+            return {
+                "success": False,
+                "error": "No profile picture URL found",
+                "username": user.username,
+            }
+
+        # Generate blur data URL
+        blur_data_url = generate_blur_data_url_from_image_url(image_url)
+
+        # Save to the model
+        user.blur_data_url = blur_data_url
+        user.save(update_fields=["blur_data_url", "updated_at"])
+
+        logger.info(
+            "Successfully generated blur data URL for user %s",
+            user.username,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully generated blur data URL",
+            "username": user.username,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating blur data URL for user %s "
+                "(attempt %s/%s): %s",
+                user.username,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate blur data URL for user %s after %s attempts",
+            user.username,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "username": user.username,
+            "attempts": self.request.retries + 1,
+        }
