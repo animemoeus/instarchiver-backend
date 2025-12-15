@@ -34,6 +34,15 @@ class Post(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.id}"
 
+    def generate_blur_data_url_task(self):
+        """
+        Generates a blurred data URL from the thumbnail_url using a Celery task.
+        This method queues the blur data URL generation as a background task.
+        """
+        from instagram.tasks import post_generate_blur_data_url  # noqa: PLC0415
+
+        post_generate_blur_data_url.delay(self.id)
+
 
 class PostMedia(models.Model):
     post = models.ForeignKey(Post, on_delete=models.CASCADE)

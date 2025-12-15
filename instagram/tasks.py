@@ -674,6 +674,174 @@ def auto_generate_story_blur_data_urls():
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def post_generate_blur_data_url(self, post_id: str) -> dict:
+    """
+    Generate blur data URL for a post in the background.
+    Delegates business logic to the utility function.
+
+    Args:
+        post_id (str): ID of the post to generate blur data URL for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    from .utils import generate_blur_data_url_from_image_url  # noqa: PLC0415
+
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        logger.exception("Post with ID %s not found", post_id)
+        return {"success": False, "error": "Post not found"}
+
+    try:
+        # Generate blur data URL using utility function
+        blur_data_url = generate_blur_data_url_from_image_url(
+            post.thumbnail.url if post.thumbnail else post.thumbnail_url,
+        )
+
+        # Save to the model
+        post.blur_data_url = blur_data_url
+        post.save()
+
+        logger.info(
+            "Successfully generated blur data URL for post %s",
+            post_id,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully generated blur data URL",
+            "post_id": post_id,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating blur data URL for post %s "
+                "(attempt %s/%s): %s",
+                post_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate blur data URL for post %s after %s attempts",
+            post_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "post_id": post_id,
+            "attempts": self.request.retries + 1,
+        }
+
+
+@shared_task
+def periodic_generate_post_blur_data_urls():
+    """
+    Automatically generate blur data URLs for posts that don't have them yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    try:
+        # Get all posts without blur_data_url
+        posts = Post.objects.filter(blur_data_url="")
+        total_posts = posts.count()
+
+        if total_posts == 0:
+            logger.info("No posts found without blur data URL")
+            return {
+                "success": True,
+                "message": "No posts to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting blur data URL generation for %d posts",
+            total_posts,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for post in posts:
+            try:
+                # Queue the blur data URL generation task
+                task_result = post_generate_blur_data_url.delay(post.id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued blur data URL generation for "
+                    "post: %s (task: %s)",
+                    post.id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue blur data URL generation for "
+                    f"post {post.id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing blur data URL generation for post %s",
+                    post.id,
+                )
+
+        logger.info(
+            "Blur data URL generation queuing completed: "
+            "%d queued, %d errors out of %d total posts",
+            queued_count,
+            error_count,
+            total_posts,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Blur data URL generation tasks queued",
+            "total": total_posts,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in periodic_generate_post_blur_data_urls")
+        return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def download_post_thumbnail_from_url(self, post_id):
     """
     Download post thumbnail from URL if content has changed.
