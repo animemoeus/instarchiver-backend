@@ -38,6 +38,16 @@ class GetUserPostMixIn:
             obj.thumbnail_url = post.get("display_uri")
             obj.save()
 
+    def update_posts_from_api_async(self):
+        """
+        Trigger asynchronous update of user posts from Instagram API.
+        Use this method to queue the post update as a background task.
+        """
+        from instagram.tasks import update_user_posts_from_api  # noqa: PLC0415
+
+        logger.info("Queuing post update task for user %s", self.username)
+        return update_user_posts_from_api.delay(self.uuid)
+
 
 class User(models.Model, GetUserPostMixIn):
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

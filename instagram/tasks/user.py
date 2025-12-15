@@ -181,6 +181,79 @@ def update_user_stories_from_api(self, user_id):
         }
 
 
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def update_user_posts_from_api(self, user_id):
+    """
+    Update user's posts from Instagram API in the background.
+    Delegates business logic to the User model method.
+    """
+    try:
+        user = User.objects.get(uuid=user_id)
+    except User.DoesNotExist:
+        logger.exception("User with ID %s not found", user_id)
+        return {"success": False, "error": "User not found"}
+
+    try:
+        # Call the model method which handles all business logic
+        user.update_post_data_from_api()
+
+        logger.info(
+            "Successfully updated posts for user %s via Celery task",
+            user.username,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully updated posts",
+            "username": user.username,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error updating posts for %s (attempt %s/%s): %s",
+                user.username,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to update posts for user %s after %s attempts",
+            user.username,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "username": user.username,
+            "attempts": self.request.retries + 1,
+        }
+
+
 @shared_task
 def auto_update_users_profile():
     """
