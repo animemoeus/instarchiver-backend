@@ -8,10 +8,7 @@ from simple_history.models import HistoricalRecords
 from core.utils.instagram_api import fetch_user_info_by_user_id
 from core.utils.instagram_api import fetch_user_info_by_username_v2
 from core.utils.instagram_api import fetch_user_stories_by_username
-from payments.models import Payment
-
-from .misc import get_user_profile_picture_upload_location
-from .misc import get_user_story_upload_location
+from instagram.misc import get_user_profile_picture_upload_location
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +178,10 @@ class User(models.Model):
 
     def _update_stories_from_api(self):
         """Update user stories from Instagram API with full error handling and logging."""  # noqa: E501
+        # Import here to avoid circular imports
+        from .story import Story  # noqa: PLC0415
+        from .story import UserUpdateStoryLog  # noqa: PLC0415
+
         # Create log entry to track this operation
         log_entry = UserUpdateStoryLog.objects.create(
             user=self,
@@ -270,134 +271,7 @@ class User(models.Model):
         Trigger asynchronous update of user stories from Instagram API.
         Use this method to queue the story update as a background task.
         """
-        from .tasks import update_user_stories_from_api  # noqa: PLC0415
+        from instagram.tasks import update_user_stories_from_api  # noqa: PLC0415
 
         logger.info("Queuing story update task for user %s", self.username)
         return update_user_stories_from_api.delay(self.uuid)
-
-
-class Story(models.Model):
-    story_id = models.CharField(unique=True, max_length=50, primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    thumbnail_url = models.URLField(max_length=2500, blank=True)
-    blur_data_url = models.TextField(blank=True)
-    media_url = models.URLField(max_length=2500, blank=True)
-
-    thumbnail = models.ImageField(
-        upload_to=get_user_story_upload_location,
-        blank=True,
-        null=True,
-    )
-    media = models.FileField(
-        upload_to=get_user_story_upload_location,
-        blank=True,
-        null=True,
-    )
-    raw_api_data = models.JSONField(blank=True, null=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    story_created_at = models.DateTimeField()
-
-    class Meta:
-        verbose_name = "Story"
-        verbose_name_plural = "Stories"
-
-    def __str__(self):
-        return f"{self.user.username} - {self.story_id}"
-
-    def generate_blur_data_url_task(self):
-        """
-        Generates a blurred data URL from the media_url using a Celery task.
-        This method queues the blur data URL generation as a background task.
-        """
-        from .tasks import story_generate_blur_data_url  # noqa: PLC0415
-
-        story_generate_blur_data_url.delay(self.story_id)
-
-
-class UserUpdateStoryLog(models.Model):
-    STATUS_PENDING = "PENDING"
-    STATUS_IN_PROGRESS = "IN_PROGRESS"
-    STATUS_COMPLETED = "COMPLETED"
-    STATUS_FAILED = "FAILED"
-    STATUS_CHOICES = [
-        (STATUS_PENDING, "Pending"),
-        (STATUS_IN_PROGRESS, "In Progress"),
-        (STATUS_COMPLETED, "Completed"),
-        (STATUS_FAILED, "Failed"),
-    ]
-
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    status = models.CharField(
-        max_length=20,
-        choices=STATUS_CHOICES,
-        default=STATUS_PENDING,
-    )
-    message = models.TextField(blank=True)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "User Update Story Log"
-        verbose_name_plural = "User Update Story Logs"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Story Update for {self.user.username} - {self.status}"
-
-
-class StoryCredit(models.Model):
-    user = models.OneToOneField(User, on_delete=models.CASCADE)
-    credit = models.IntegerField(default=0)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    history = HistoricalRecords()
-
-    class Meta:
-        verbose_name = "Story Credit"
-        verbose_name_plural = "Story Credits"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Story Credit for {self.user.username}"
-
-
-class StoryCreditPayment(models.Model):
-    story_credit = models.ForeignKey(StoryCredit, on_delete=models.CASCADE)
-    payment = models.ForeignKey(Payment, on_delete=models.CASCADE)
-
-    credit = models.IntegerField(default=0)
-
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        verbose_name = "Story Credit Payment"
-        verbose_name_plural = "Story Credit Payments"
-        ordering = ["-created_at"]
-
-    def __str__(self):
-        return f"Story Credit Payment for {self.story_credit.user.username}"
-
-    def save(self, *args, **kwargs):
-        super().save(*args, **kwargs)
-        self.update_story_credit()
-
-    def update_story_credit(self):
-        self.story_credit.credit += self.credit
-        self.story_credit.save()
-
-    @staticmethod
-    def create_record(payment_id, instagram_user_id, credit):
-        instagram_user = User.objects.get(uuid=instagram_user_id)
-        story_credit, _ = StoryCredit.objects.get_or_create(user=instagram_user)
-        payment = Payment.objects.get(id=payment_id)
-
-        return StoryCreditPayment.objects.create(
-            story_credit=story_credit,
-            payment=payment,
-            credit=credit,
-        )
