@@ -52,6 +52,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "updated_at",
         "thumbnail_url",
         "raw_data",
+        "blur_data_url",
     ]
     fieldsets = (
         (
@@ -63,6 +64,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                     "variant",
                     "thumbnail_url",
                     "thumbnail",
+                    "blur_data_url",
                 ),
                 "classes": ["tab"],
             },
