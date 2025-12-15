@@ -66,39 +66,62 @@ class User(models.Model):
         return super().delete(*args, **kwargs)
 
     def _extract_api_data_from_username_v2(self, data):
-        """Extract API response data from fetch_user_info_by_username_v2."""
+        """Extract API response data from fetch_user_info_by_username_v2.
+
+        The v1 API returns data in a nested structure with edge-based counts.
+        """
         if not data:
             return
 
-        self.instagram_id = data.get("pk") or self.instagram_id
+        # v1 API uses 'id' for the Instagram ID
+        instagram_id = data.get("id")
+        self.instagram_id = str(instagram_id) or self.instagram_id
         self.username = data.get("username") or self.username
         self.full_name = data.get("full_name", "")
-        self.original_profile_picture_url = data.get("profile_pic_url", "")
-        self.biography = data.get("biography", "")
-        self.is_private = data.get("is_private", False)
-        self.is_verified = data.get("is_verified", False)
-        self.media_count = data.get("media_count", 0)
-        self.follower_count = data.get("follower_count", 0)
-        self.following_count = data.get("following_count", 0)
-
-    def _extract_api_data_from_user_id(self, data):
-        """Extract API response data from fetch_user_info_by_user_id."""
-        if not data:
-            return
-
-        self.instagram_id = data.get("id") or self.instagram_id
-        self.username = data.get("username") or self.username
-        self.full_name = data.get("full_name", "")
-        self.original_profile_picture_url = data.get("profile_pic_url", "")
+        # v1 API uses 'profile_pic_url_hd' as primary, fallback to 'profile_pic_url'
+        self.original_profile_picture_url = (
+            data.get("profile_pic_url_hd") or data.get("profile_pic_url") or ""
+        )
         self.biography = data.get("biography", "")
         self.is_private = data.get("is_private", False)
         self.is_verified = data.get("is_verified", False)
 
-        # For user_id API, media count is nested in edge_owner_to_timeline_media
+        # v1 API uses edge structures for counts
         media_edge = data.get("edge_owner_to_timeline_media", {})
         self.media_count = media_edge.get("count", 0)
 
-        # Follower and following counts are nested in edge structures
+        follower_edge = data.get("edge_followed_by", {})
+        self.follower_count = follower_edge.get("count", 0)
+
+        following_edge = data.get("edge_follow", {})
+        self.following_count = following_edge.get("count", 0)
+
+    def _extract_api_data_from_user_id(self, data):
+        """Extract API response data from fetch_user_info_by_user_id.
+
+        The v1 API returns data in a nested structure with edge-based counts,
+        same format as the username v2 API.
+        """
+        if not data:
+            return
+
+        # v1 API uses 'id' for the Instagram ID
+        instagram_id = data.get("id")
+        self.instagram_id = str(instagram_id) or self.instagram_id
+        self.username = data.get("username") or self.username
+        self.full_name = data.get("full_name", "")
+        # v1 API uses 'profile_pic_url_hd' as primary, fallback to 'profile_pic_url'
+        self.original_profile_picture_url = (
+            data.get("profile_pic_url_hd") or data.get("profile_pic_url") or ""
+        )
+        self.biography = data.get("biography", "")
+        self.is_private = data.get("is_private", False)
+        self.is_verified = data.get("is_verified", False)
+
+        # v1 API uses edge structures for counts
+        media_edge = data.get("edge_owner_to_timeline_media", {})
+        self.media_count = media_edge.get("count", 0)
+
         follower_edge = data.get("edge_followed_by", {})
         self.follower_count = follower_edge.get("count", 0)
 
@@ -112,22 +135,38 @@ class User(models.Model):
         response = fetch_user_info_by_username_v2(self.username)
         api_method = "username_v2"
 
-        # If username API fails and we have instagram_id, try user_id as fallback
-        username_failed = not response.get("data") or not response["data"].get("status")
+        # v2 API uses 'code' field for status (200 = success)
+        username_failed = response.get("data") and not response.get("data").get(
+            "status",
+        )
         if username_failed and self.instagram_id:
             response = fetch_user_info_by_user_id(self.instagram_id)
             api_method = "user_id"
 
-        # Check for errors in the response and throw an exception
-        if response.get("data") and not response["data"].get("status"):
-            msg = "Error fetching data for user %s. %s " % (  # noqa: UP031
-                self.username,
-                response["data"].get("errorMessage", ""),
-            )
-            logger.error(msg)
-            raise Exception(msg)  # noqa: TRY002
+        # Check for errors in the response
+        if api_method == "username_v2":
+            # v1 API uses 'code' field for status
+            if response.get("data") and not response.get("data").get("status"):
+                msg = "Error fetching data for user %s. %s" % (  # noqa: UP031
+                    self.username,
+                    response.get("data").get("errorMessage", "Unknown error"),
+                )
+                logger.error(msg)
+                raise Exception(msg)  # noqa: TRY002
+            # v1 API nests user data in response['data']['data']['user']
+            data = response.get("data", {}).get("data", {}).get("user")
+        else:
+            # user_id API now uses v1 structure (same as username_v2)
+            if response.get("data") and not response.get("data").get("status"):
+                msg = "Error fetching data for user %s. %s" % (  # noqa: UP031
+                    self.username,
+                    response.get("data").get("errorMessage", "Unknown error"),
+                )
+                logger.error(msg)
+                raise Exception(msg)  # noqa: TRY002
+            # v1 API nests user data in response['data']
+            data = response.get("data")
 
-        data = response.get("data")
         self.raw_api_data = data
 
         # Use appropriate extraction method based on which API was called
