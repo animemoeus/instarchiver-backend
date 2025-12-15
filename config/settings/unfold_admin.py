@@ -117,6 +117,16 @@ UNFOLD = {
                         "link": "/admin/instagram/user/",
                     },
                     {
+                        "title": "Posts",
+                        "icon": "collections",
+                        "link": "/admin/instagram/post/",
+                    },
+                    {
+                        "title": "Post Media",
+                        "icon": "perm_media",
+                        "link": "/admin/instagram/postmedia/",
+                    },
+                    {
                         "title": "Stories",
                         "icon": "photo_library",
                         "link": "/admin/instagram/story/",
