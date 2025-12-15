@@ -17,6 +17,13 @@ class Post(models.Model):
     id = models.CharField(max_length=50, primary_key=True, unique=True)
     user = models.ForeignKey(User, on_delete=models.CASCADE)
     variant = models.CharField(max_length=15, choices=POST_VARIANTS)
+    thumbnail_url = models.URLField(max_length=2500)
+    thumbnail = models.ImageField(
+        upload_to=get_post_media_upload_location,
+        blank=True,
+        null=True,
+    )
+    raw_data = models.JSONField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

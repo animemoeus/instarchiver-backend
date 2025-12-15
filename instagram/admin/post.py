@@ -49,6 +49,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "id",
         "created_at",
         "updated_at",
+        "thumbnail_url",
     ]
     fieldsets = (
         (
@@ -58,6 +59,8 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                     "id",
                     "user",
                     "variant",
+                    "thumbnail_url",
+                    "thumbnail",
                 ),
                 "classes": ["tab"],
             },

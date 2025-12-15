@@ -109,18 +109,18 @@ def fetch_user_posts_by_username(username: str) -> dict[str, Any]:
         ImproperlyConfigured: If API settings are not configured
         requests.RequestException: If the API request fails
     """
-    endpoint = "/api/v1/instagram/v2/fetch_user_posts"
-    params = {"username": username}
+    endpoint = "/api/v1/instagram/v1/fetch_user_posts"
+    params = {"user_id": username, "count": 50}
 
-    logger.info("Fetching posts for username: %s", username)
+    logger.info("Fetching posts for user_id: %s", username)
 
     try:
         response = make_request("GET", endpoint, params=params)
         response.raise_for_status()
         data = response.json()
     except Exception as e:
-        logger.exception("Failed to fetch posts for username %s: %s", username, e)  # noqa: TRY401
+        logger.exception("Failed to fetch posts for user_id %s: %s", username, e)  # noqa: TRY401
         raise
     else:
-        logger.info("Successfully fetched posts for username: %s", username)
+        logger.info("Successfully fetched posts for user_id: %s", username)
         return data
