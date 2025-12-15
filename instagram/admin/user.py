@@ -14,9 +14,14 @@ from instagram.models import User
 @admin.register(User)
 class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
     actions_detail = [
-        "update_from_api",
-        "update_stories_from_api",
-        "update_posts_from_api",
+        {
+            "title": "Actions",
+            "items": [
+                "update_from_api",
+                "update_stories_from_api",
+                "update_posts_from_api",
+            ],
+        },
     ]
     list_display = [
         "username",
@@ -87,7 +92,8 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
     ordering = ["-created_at"]
 
     @action(
-        description=_("Update from Instagram API"),
+        description=_("Update Profile"),
+        icon="refresh",
         url_path="update-from-api",
         permissions=["change"],
     )
@@ -109,7 +115,8 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
 
     @action(
-        description=_("Update stories from Instagram API"),
+        description=_("Update Stories"),
+        icon="refresh",
         url_path="update-stories-from-api",
         permissions=["change"],
     )
@@ -131,7 +138,8 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
 
     @action(
-        description=_("Update posts from Instagram API"),
+        description=_("Update Posts"),
+        icon="refresh",
         url_path="update-posts-from-api",
         permissions=["change"],
     )
