@@ -16,7 +16,7 @@ class TestPostModel(TestCase):
 
         assert post.id is not None
         assert post.user is not None
-        assert post.variant in [post.POST_VARIANT_NORMAL, post.POST_VARIANT_CAUROSEL]
+        assert post.variant in [post.POST_VARIANT_NORMAL, post.POST_VARIANT_CAROUSEL]
         assert post.thumbnail_url is not None
         assert post.created_at is not None
         assert post.updated_at is not None

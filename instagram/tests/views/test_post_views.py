@@ -397,7 +397,7 @@ class PostListViewTest(TestCase):
         """Test filtering posts by variant (normal)."""
         user = InstagramUserFactory(username="testuser")
         PostFactory.create_batch(3, user=user, variant=Post.POST_VARIANT_NORMAL)
-        PostFactory.create_batch(2, user=user, variant=Post.POST_VARIANT_CAUROSEL)
+        PostFactory.create_batch(2, user=user, variant=Post.POST_VARIANT_CAROUSEL)
 
         response = self.client.get(self.url, {"variant": Post.POST_VARIANT_NORMAL})
 
@@ -413,9 +413,9 @@ class PostListViewTest(TestCase):
         """Test filtering posts by variant (carousel)."""
         user = InstagramUserFactory(username="testuser")
         PostFactory.create_batch(3, user=user, variant=Post.POST_VARIANT_NORMAL)
-        PostFactory.create_batch(2, user=user, variant=Post.POST_VARIANT_CAUROSEL)
+        PostFactory.create_batch(2, user=user, variant=Post.POST_VARIANT_CAROUSEL)
 
-        response = self.client.get(self.url, {"variant": Post.POST_VARIANT_CAUROSEL})
+        response = self.client.get(self.url, {"variant": Post.POST_VARIANT_CAROUSEL})
 
         assert response.status_code == status.HTTP_200_OK
         results = response.data["results"]
@@ -423,7 +423,7 @@ class PostListViewTest(TestCase):
 
         # All results should have carousel variant
         for post in results:
-            assert post["variant"] == Post.POST_VARIANT_CAUROSEL
+            assert post["variant"] == Post.POST_VARIANT_CAROUSEL
 
     def test_combined_search_and_filter(self):
         """Test using search and filter together."""
@@ -744,25 +744,25 @@ class PostDetailViewTest(TestCase):
     def test_post_variant_carousel(self):
         """Test retrieving a post with carousel variant."""
         user = InstagramUserFactory(username="carouseluser")
-        post = PostFactory(user=user, variant=Post.POST_VARIANT_CAUROSEL)
+        post = PostFactory(user=user, variant=Post.POST_VARIANT_CAROUSEL)
 
         url = reverse("instagram:post_detail", kwargs={"id": post.id})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["variant"] == Post.POST_VARIANT_CAUROSEL
+        assert response.data["variant"] == Post.POST_VARIANT_CAROUSEL
 
     def test_post_with_multiple_media(self):
         """Test retrieving a carousel post with multiple media items."""
         user = InstagramUserFactory(username="carouseluser")
-        post = PostFactory(user=user, variant=Post.POST_VARIANT_CAUROSEL)
+        post = PostFactory(user=user, variant=Post.POST_VARIANT_CAROUSEL)
         media_items = PostMediaFactory.create_batch(5, post=post)
 
         url = reverse("instagram:post_detail", kwargs={"id": post.id})
         response = self.client.get(url)
 
         assert response.status_code == status.HTTP_200_OK
-        assert response.data["variant"] == Post.POST_VARIANT_CAUROSEL
+        assert response.data["variant"] == Post.POST_VARIANT_CAROUSEL
         assert len(response.data["media"]) == 5  # noqa: PLR2004
 
         # Verify all media items are returned

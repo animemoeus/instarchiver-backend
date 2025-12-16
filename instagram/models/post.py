@@ -7,11 +7,14 @@ from instagram.models.user import User
 
 class Post(models.Model):
     POST_VARIANT_NORMAL = "normal"
-    POST_VARIANT_CAUROSEL = "carousel"
+    POST_VARIANT_CAROUSEL = "carousel"
+    # Deprecated: Use POST_VARIANT_CAROUSEL instead
+    # TODO: Remove this alias after all code is migrated to use POST_VARIANT_CAROUSEL
+    POST_VARIANT_CAUROSEL = POST_VARIANT_CAROUSEL
 
     POST_VARIANTS = (
         (POST_VARIANT_NORMAL, "Normal"),
-        (POST_VARIANT_CAUROSEL, "Carousel"),
+        (POST_VARIANT_CAROUSEL, "Carousel"),
     )
 
     id = models.CharField(max_length=50, primary_key=True, unique=True)

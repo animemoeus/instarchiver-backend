@@ -53,7 +53,7 @@ class PostFactory(DjangoModelFactory):
     user = SubFactory(InstagramUserFactory)
     variant = Faker(
         "random_element",
-        elements=[Post.POST_VARIANT_NORMAL, Post.POST_VARIANT_CAUROSEL],
+        elements=[Post.POST_VARIANT_NORMAL, Post.POST_VARIANT_CAROUSEL],
     )
     thumbnail_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/6a2d71ab-80a5-477e-83a0-b4ea811816ff.jpg"
     blur_data_url = Faker("pystr", max_chars=100)
