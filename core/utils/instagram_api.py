@@ -96,14 +96,20 @@ def fetch_user_stories_by_username(username: str) -> dict[str, Any]:
         return data
 
 
-def fetch_user_posts_by_username(username: str) -> dict[str, Any]:
-    """Fetch Instagram user posts by username using Core API v2 endpoint.
+def fetch_user_posts_by_username(
+    username: str,
+    max_id: str | None = None,
+) -> dict[str, Any]:
+    """Fetch Instagram user posts by username with pagination support.
 
     Args:
         username: Instagram username to fetch posts for
+        max_id: Optional pagination cursor for fetching next page of posts
 
     Returns:
-        Dictionary containing user posts from the API response
+        Dictionary containing user posts from the API response:
+        - data.items: List of posts
+        - data.next_max_id: Cursor for next page (if available)
 
     Raises:
         ImproperlyConfigured: If API settings are not configured
@@ -111,8 +117,14 @@ def fetch_user_posts_by_username(username: str) -> dict[str, Any]:
     """
     endpoint = "/api/v1/instagram/v1/fetch_user_posts"
     params = {"user_id": username, "count": 50}
+    if max_id:
+        params["max_id"] = max_id
 
-    logger.info("Fetching posts for user_id: %s", username)
+    logger.info(
+        "Fetching posts for user_id: %s (max_id: %s)",
+        username,
+        max_id or "None",
+    )
 
     try:
         response = make_request("GET", endpoint, params=params)

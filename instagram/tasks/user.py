@@ -184,8 +184,8 @@ def update_user_stories_from_api(self, user_id):
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def update_user_posts_from_api(self, user_id):
     """
-    Update user's posts from Instagram API in the background.
-    Delegates business logic to the User model method.
+    Update user's posts from Instagram API with full pagination support.
+    Fetches all pages of posts using the max_id cursor.
     """
     try:
         user = User.objects.get(uuid=user_id)
@@ -194,18 +194,25 @@ def update_user_posts_from_api(self, user_id):
         return {"success": False, "error": "User not found"}
 
     try:
-        # Call the model method which handles all business logic
-        user.update_post_data_from_api()
+        # Call the model method which handles pagination recursively
+        result = user._update_post_data_from_api()  # noqa: SLF001
 
         logger.info(
-            "Successfully updated posts for user %s via Celery task",
+            "Successfully updated %d posts across %d pages for user %s via Celery task",
+            result["total_posts"],
+            result["pages_fetched"],
             user.username,
         )
 
-        return {  # noqa: TRY300
+        return {
             "success": True,
-            "message": "Successfully updated posts",
+            "message": (
+                f"Successfully updated {result['total_posts']} posts "
+                f"across {result['pages_fetched']} pages"
+            ),
             "username": user.username,
+            "total_posts": result["total_posts"],
+            "pages_fetched": result["pages_fetched"],
         }
 
     except Exception as e:
