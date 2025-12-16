@@ -1,4 +1,5 @@
 from django.db import models
+from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
 from instagram.misc import get_post_media_upload_location
@@ -8,9 +9,6 @@ from instagram.models.user import User
 class Post(models.Model):
     POST_VARIANT_NORMAL = "normal"
     POST_VARIANT_CAROUSEL = "carousel"
-    # Deprecated: Use POST_VARIANT_CAROUSEL instead
-    # TODO: Remove this alias after all code is migrated to use POST_VARIANT_CAROUSEL
-    POST_VARIANT_CAUROSEL = POST_VARIANT_CAROUSEL
 
     POST_VARIANTS = (
         (POST_VARIANT_NORMAL, "Normal"),
@@ -32,6 +30,7 @@ class Post(models.Model):
     )
     blur_data_url = models.TextField(blank=True)
     raw_data = models.JSONField(blank=True, null=True)
+    post_created_at = models.DateTimeField(default=timezone.now)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

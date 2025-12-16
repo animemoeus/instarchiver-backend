@@ -53,15 +53,15 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "thumbnail_url",
         "raw_data",
         "blur_data_url",
+        "post_created_at",
     ]
     fieldsets = (
         (
             "General",
             {
                 "fields": (
-                    "id",
-                    "user",
-                    "variant",
+                    ("id", "post_created_at"),
+                    ("user", "variant"),
                     "thumbnail_url",
                     "thumbnail",
                     "blur_data_url",
