@@ -12,6 +12,7 @@ class PostMediaSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "thumbnail_url",
+            "blur_data_url",
             "media_url",
             "thumbnail",
             "media",
