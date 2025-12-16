@@ -8,6 +8,7 @@ from django.test import TestCase
 from django.test import override_settings
 
 from instagram.models import Post
+from instagram.tasks import download_post_media_from_url
 from instagram.tasks import download_post_media_thumbnail_from_url
 from instagram.tasks import download_post_thumbnail_from_url
 from instagram.tasks import periodic_generate_post_blur_data_urls
@@ -751,3 +752,175 @@ class TestPeriodicGeneratePostMediaBlurDataUrls(TestCase):
         assert result.result["queued"] == 1
         assert result.result["errors"] == 1
         assert result.result["error_details"] is not None
+
+
+class TestDownloadPostMediaFromUrl(TestCase):
+    """Tests for the download_post_media_from_url Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.requests.get")
+    def test_download_post_media_success(self, mock_get):
+        """Test successful media download and save."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            media_url="https://example.com/media.mp4",
+        )
+
+        # Mock the HTTP response
+        mock_response = Mock()
+        mock_response.content = b"new_media_content"
+        mock_response.headers = {"content-type": "video/mp4"}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert "Media downloaded" in result.result["message"]
+
+        # Verify requests.get was called
+        mock_get.assert_called_once_with(post_media.media_url, timeout=30)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.requests.get")
+    def test_download_post_media_hash_unchanged(self, mock_get):
+        """Test that media is not updated if hash is unchanged."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            media_url="https://example.com/media.mp4",
+        )
+
+        # Set up existing media
+        media_content = b"existing_media_content"
+        post_media.media.save(
+            "media.mp4",
+            ContentFile(media_content),
+            save=True,
+        )
+
+        # Mock the HTTP response with same content
+        mock_response = Mock()
+        mock_response.content = media_content
+        mock_response.headers = {"content-type": "video/mp4"}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task detected no changes
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert "No changes detected" in result.result["message"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_download_post_media_not_found(self):
+        """Test handling of non-existent post media."""
+        # Execute the task with non-existent post media ID
+        result = download_post_media_from_url.delay(999999)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "not found" in result.result["error"].lower()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_download_post_media_no_url(self):
+        """Test handling when post media has no media URL."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(post=post, media_url="")
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "No media URL" in result.result["error"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.requests.get")
+    def test_download_post_media_network_error(self, mock_get):
+        """Test retry logic on network errors."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            media_url="https://example.com/media.mp4",
+        )
+
+        # Mock a network error
+        mock_get.side_effect = requests.RequestException("Network timeout")
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task returns an error after retries
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "error" in result.result
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.requests.get")
+    def test_download_post_media_saves_file(self, mock_get):
+        """Test that media file is saved correctly."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            media_url="https://example.com/media.mp4",
+        )
+
+        # Mock the HTTP response
+        new_content = b"new_media_content"
+        mock_response = Mock()
+        mock_response.content = new_content
+        mock_response.headers = {"content-type": "video/mp4"}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task executed successfully
+        assert result.result["success"] is True
+
+        # Verify the post media's media was updated
+        post_media.refresh_from_db()
+        assert post_media.media.name != ""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.requests.get")
+    def test_download_post_media_determines_extension(self, mock_get):
+        """Test that file extension is determined from content-type."""
+        # Create post with user first, then post media
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            media_url="https://example.com/media",
+        )
+
+        # Mock the HTTP response with video content-type
+        mock_response = Mock()
+        mock_response.content = b"video_content"
+        mock_response.headers = {"content-type": "video/mp4"}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        # Execute the task
+        result = download_post_media_from_url.delay(post_media.id)
+
+        # Verify the task executed successfully
+        assert result.result["success"] is True
+
+        # Verify the file was saved with .mp4 extension
+        post_media.refresh_from_db()
+        assert post_media.media.name.endswith(".mp4")
