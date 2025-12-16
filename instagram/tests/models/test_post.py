@@ -125,3 +125,261 @@ class TestPostMediaModel(TestCase):
         assert post_media.post.id is not None
         assert post_media.post.user is not None
         assert post_media.post.variant is not None
+
+    @patch("instagram.tasks.post_media_generate_blur_data_url.delay")
+    def test_generate_blur_data_url_task_queues_task(self, mock_task_delay):
+        """Test that generate_blur_data_url_task queues a Celery task."""
+        # Create a test post media
+        post_media = PostMediaFactory()
+
+        # Mock the task delay
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Call the method
+        post_media.generate_blur_data_url_task()
+
+        # Verify the task was queued
+        mock_task_delay.assert_called_once_with(post_media.id)
+
+
+class TestPostProcessingMethods(TestCase):
+    """Tests for Post model processing methods."""
+
+    def test_process_post_by_type_carousel(self):
+        """Test process_post_by_type identifies and processes carousel posts."""
+        # Create post with carousel raw_data
+        raw_data = {
+            "id": "1234567890",
+            "carousel_media": [
+                {
+                    "strong_id__": "carousel_item_1",
+                    "display_uri": "https://example.com/carousel1.jpg",
+                },
+                {
+                    "strong_id__": "carousel_item_2",
+                    "display_uri": "https://example.com/carousel2.jpg",
+                },
+            ],
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Process the post
+        post.process_post_by_type()
+
+        # Verify variant was set to carousel
+        post.refresh_from_db()
+        assert post.variant == post.POST_VARIANT_CAROUSEL
+
+        # Verify PostMedia objects were created
+        assert post.postmedia_set.count() == 2  # noqa: PLR2004
+
+    def test_process_post_by_type_video(self):
+        """Test process_post_by_type identifies and processes video posts."""
+        # Create post with video raw_data
+        raw_data = {
+            "id": "1234567890",
+            "video_versions": [
+                {"url": "https://example.com/video.mp4"},
+            ],
+            "image_versions2": {
+                "candidates": [
+                    {"url": "https://example.com/thumbnail.jpg"},
+                ],
+            },
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Process the post
+        post.process_post_by_type()
+
+        # Verify variant was set to video
+        post.refresh_from_db()
+        assert post.variant == post.POST_VARIANT_VIDEO
+
+        # Verify PostMedia object was created
+        assert post.postmedia_set.count() == 1
+
+    def test_process_post_by_type_normal(self):
+        """Test process_post_by_type identifies and processes normal posts."""
+        # Create post with normal raw_data (no carousel_media or video_versions)
+        raw_data = {
+            "id": "1234567890",
+            "image_versions2": {
+                "candidates": [
+                    {"url": "https://example.com/image.jpg"},
+                ],
+            },
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Process the post
+        post.process_post_by_type()
+
+        # Verify variant was set to normal
+        post.refresh_from_db()
+        assert post.variant == post.POST_VARIANT_NORMAL
+
+        # Verify PostMedia object was created
+        assert post.postmedia_set.count() == 1
+
+    def test_process_post_by_type_no_raw_data(self):
+        """Test process_post_by_type handles posts without raw_data."""
+        # Create post without raw_data
+        post = PostFactory(raw_data=None)
+
+        # Process the post - should not raise an error
+        post.process_post_by_type()
+
+        # No PostMedia should be created
+        assert post.postmedia_set.count() == 0
+
+    def test_handle_post_carousel_idempotent(self):
+        """Test handle_post_carousel is idempotent (safe to call multiple times)."""
+        # Create post with carousel raw_data
+        raw_data = {
+            "id": "1234567890",
+            "carousel_media": [
+                {
+                    "strong_id__": "carousel_item_1",
+                    "display_uri": "https://example.com/carousel1.jpg",
+                },
+            ],
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_carousel multiple times
+        post.handle_post_carousel()
+        post.handle_post_carousel()
+        post.handle_post_carousel()
+
+        # Verify only one PostMedia object was created (due to get_or_create)
+        assert post.postmedia_set.count() == 1
+
+    def test_handle_post_normal_creates_post_media(self):
+        """Test handle_post_normal creates PostMedia with correct data."""
+        # Create post with normal raw_data
+        raw_data = {
+            "id": "1234567890",
+            "image_versions2": {
+                "candidates": [
+                    {"url": "https://example.com/image.jpg"},
+                ],
+            },
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_normal
+        post.handle_post_normal()
+
+        # Verify PostMedia was created with correct data
+        post_media = post.postmedia_set.first()
+        assert post_media is not None
+        assert post_media.reference == raw_data["id"]
+        assert post_media.thumbnail_url == "https://example.com/image.jpg"
+        assert post_media.media_url == "https://example.com/image.jpg"
+
+    def test_handle_post_carousel_creates_multiple_media(self):
+        """Test handle_post_carousel creates multiple PostMedia objects."""
+        # Create post with carousel raw_data
+        raw_data = {
+            "id": "1234567890",
+            "carousel_media": [
+                {
+                    "strong_id__": "carousel_item_1",
+                    "display_uri": "https://example.com/carousel1.jpg",
+                },
+                {
+                    "strong_id__": "carousel_item_2",
+                    "display_uri": "https://example.com/carousel2.jpg",
+                },
+                {
+                    "strong_id__": "carousel_item_3",
+                    "display_uri": "https://example.com/carousel3.jpg",
+                },
+            ],
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_carousel
+        post.handle_post_carousel()
+
+        # Verify all PostMedia objects were created
+        assert post.postmedia_set.count() == 3  # noqa: PLR2004
+
+        # Verify each has correct reference
+        references = list(post.postmedia_set.values_list("reference", flat=True))
+        assert "carousel_item_1" in references
+        assert "carousel_item_2" in references
+        assert "carousel_item_3" in references
+
+    def test_handle_post_video_creates_post_media(self):
+        """Test handle_post_video creates PostMedia with video URL."""
+        # Create post with video raw_data
+        raw_data = {
+            "id": "1234567890",
+            "video_versions": [
+                {"url": "https://example.com/video.mp4"},
+            ],
+            "image_versions2": {
+                "candidates": [
+                    {"url": "https://example.com/thumbnail.jpg"},
+                ],
+            },
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_video
+        post.handle_post_video()
+
+        # Verify PostMedia was created with video URL
+        post_media = post.postmedia_set.first()
+        assert post_media is not None
+        assert post_media.reference == raw_data["id"]
+        assert post_media.thumbnail_url == "https://example.com/thumbnail.jpg"
+        assert post_media.media_url == "https://example.com/video.mp4"
+
+    def test_handle_post_normal_skips_carousel(self):
+        """Test handle_post_normal skips processing if carousel_media exists."""
+        # Create post with carousel raw_data
+        raw_data = {
+            "id": "1234567890",
+            "carousel_media": [
+                {
+                    "strong_id__": "carousel_item_1",
+                    "display_uri": "https://example.com/carousel1.jpg",
+                },
+            ],
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_normal (should skip)
+        post.handle_post_normal()
+
+        # Verify variant was NOT changed to normal
+        post.refresh_from_db()
+        # Variant should still be whatever was set by factory (carousel or normal)
+        # No PostMedia should be created by handle_post_normal
+        assert post.postmedia_set.count() == 0
+
+    def test_handle_post_video_skips_without_video_versions(self):
+        """Test handle_post_video skips if no video_versions in raw_data."""
+        # Create post without video_versions
+        raw_data = {
+            "id": "1234567890",
+            "image_versions2": {
+                "candidates": [
+                    {"url": "https://example.com/image.jpg"},
+                ],
+            },
+        }
+        post = PostFactory(raw_data=raw_data)
+
+        # Call handle_post_video
+        post.handle_post_video()
+
+        # Verify variant was set to video but no PostMedia created
+        post.refresh_from_db()
+        assert post.variant == post.POST_VARIANT_VIDEO
+        assert post.postmedia_set.count() == 0

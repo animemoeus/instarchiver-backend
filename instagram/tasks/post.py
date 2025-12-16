@@ -179,6 +179,177 @@ def periodic_generate_post_blur_data_urls():
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def post_media_generate_blur_data_url(self, post_media_id: int) -> dict:
+    """
+    Generate blur data URL for a post media in the background.
+    Delegates business logic to the utility function.
+
+    Args:
+        post_media_id (int): ID of the post media to generate blur data URL for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post_media = PostMedia.objects.get(id=post_media_id)
+    except PostMedia.DoesNotExist:
+        logger.exception("PostMedia with ID %s not found", post_media_id)
+        return {"success": False, "error": "PostMedia not found"}
+
+    try:
+        # Generate blur data URL using utility function
+        image_url = (
+            post_media.thumbnail.url
+            if post_media.thumbnail
+            else post_media.thumbnail_url
+        )
+        blur_data_url = generate_blur_data_url_from_image_url(image_url)
+
+        # Save to the model
+        post_media.blur_data_url = blur_data_url
+        post_media.save()
+
+        logger.info(
+            "Successfully generated blur data URL for post media %s",
+            post_media_id,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully generated blur data URL",
+            "post_media_id": post_media_id,
+        }
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating blur data URL for post media %s "
+                "(attempt %s/%s): %s",
+                post_media_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate blur data URL for post media %s after %s attempts",
+            post_media_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "post_media_id": post_media_id,
+            "attempts": self.request.retries + 1,
+        }
+
+
+@shared_task
+def periodic_generate_post_media_blur_data_urls():
+    """
+    Automatically generate blur data URLs for post media that don't have them yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    try:
+        # Get all post media without blur_data_url
+        post_media_items = PostMedia.objects.filter(blur_data_url="")
+        total_items = post_media_items.count()
+
+        if total_items == 0:
+            logger.info("No post media found without blur data URL")
+            return {
+                "success": True,
+                "message": "No post media to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting blur data URL generation for %d post media items",
+            total_items,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for post_media in post_media_items:
+            try:
+                # Queue the blur data URL generation task
+                task_result = post_media_generate_blur_data_url.delay(post_media.id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued blur data URL generation for "
+                    "post media: %s (task: %s)",
+                    post_media.id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue blur data URL generation for "
+                    f"post media {post_media.id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing blur data URL generation for post media %s",
+                    post_media.id,
+                )
+
+        logger.info(
+            "Blur data URL generation queuing completed: "
+            "%d queued, %d errors out of %d total post media items",
+            queued_count,
+            error_count,
+            total_items,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Blur data URL generation tasks queued",
+            "total": total_items,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception(
+            "Critical error in periodic_generate_post_media_blur_data_urls",
+        )
+        return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def download_post_thumbnail_from_url(self, post_id):
     """
     Download post thumbnail from URL if content has changed.
@@ -278,6 +449,68 @@ def download_post_thumbnail_from_url(self, post_id):
         return {"success": False, "error": f"Permanent error: {e!s}"}
 
 
+def _download_file_from_url(url: str, timeout: int = 30) -> bytes:
+    """
+    Download file content from URL.
+
+    Args:
+        url: URL to download from
+        timeout: Request timeout in seconds
+
+    Returns:
+        File content as bytes
+
+    Raises:
+        requests.RequestException: If download fails
+    """
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.content
+
+
+def _get_file_hash(file_field) -> str | None:
+    """
+    Calculate SHA256 hash of a file field.
+
+    Args:
+        file_field: Django FileField or ImageField instance
+
+    Returns:
+        Hex digest of file hash, or None if file doesn't exist or can't be read
+    """
+    if not file_field:
+        return None
+
+    try:
+        with file_field.open("rb") as f:
+            content = f.read()
+            return hashlib.sha256(content).hexdigest()
+    except OSError as e:
+        logger.warning("Could not read file: %s", e)
+        return None
+
+
+def _determine_file_extension(response: requests.Response, url: str) -> str:
+    """
+    Determine file extension from response headers or URL.
+
+    Args:
+        response: HTTP response object
+        url: Original URL
+
+    Returns:
+        File extension (without dot)
+    """
+    content_type = response.headers.get("content-type", "")
+    if "video" in content_type:
+        return "mp4"
+    if "image" in content_type:
+        return "jpg"
+
+    # Fallback: try to get from URL
+    return url.split(".")[-1].split("?")[0] or "jpg"
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def download_post_media_thumbnail_from_url(self, post_media_id):
     """
@@ -302,26 +535,11 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
 
     try:
         # Download image from URL
-        response = requests.get(post_media.thumbnail_url, timeout=30)
-        response.raise_for_status()
-
-        # Calculate hash of downloaded image content
-        new_image_content = response.content
+        new_image_content = _download_file_from_url(post_media.thumbnail_url)
         new_image_hash = hashlib.sha256(new_image_content).hexdigest()
 
         # Get hash of existing thumbnail if it exists
-        existing_image_hash = None
-        if post_media.thumbnail:
-            try:
-                with post_media.thumbnail.open("rb") as f:
-                    existing_content = f.read()
-                    existing_image_hash = hashlib.sha256(existing_content).hexdigest()
-            except OSError as e:
-                logger.warning(
-                    "Could not read existing thumbnail for post media %s: %s",
-                    post_media_id,
-                    e,
-                )
+        existing_image_hash = _get_file_hash(post_media.thumbnail)
 
         # Compare hashes - only update if different
         if existing_image_hash == new_image_hash:
@@ -374,6 +592,98 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
         # Non-retryable errors: permanent failures
         logger.exception(
             "Permanent error downloading thumbnail for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Permanent error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def download_post_media_from_url(self, post_media_id):
+    """
+    Download post media file from URL if content has changed.
+    Uses hash comparison to detect actual media content changes.
+
+    Args:
+        post_media_id (int): ID of the post media to download media for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post_media = PostMedia.objects.get(id=post_media_id)
+    except PostMedia.DoesNotExist:
+        logger.exception("PostMedia with ID %s not found", post_media_id)
+        return {"success": False, "error": "PostMedia not found"}
+
+    if not post_media.media_url:
+        logger.info("No media URL for post media %s", post_media_id)
+        return {"success": False, "error": "No media URL"}
+
+    try:
+        # Download media from URL
+        response = requests.get(post_media.media_url, timeout=30)
+        response.raise_for_status()
+
+        # Calculate hash of downloaded media content
+        new_media_content = response.content
+        new_media_hash = hashlib.sha256(new_media_content).hexdigest()
+
+        # Get hash of existing media if it exists
+        existing_media_hash = _get_file_hash(post_media.media)
+
+        # Compare hashes - only update if different
+        if existing_media_hash == new_media_hash:
+            logger.info("Media unchanged for post media %s", post_media_id)
+            return {"success": True, "message": "No changes detected"}
+
+        # Determine file extension from content-type or URL
+        extension = _determine_file_extension(response, post_media.media_url)
+
+        # Save new media
+        filename = f"post_media_{post_media_id}_media.{extension}"
+
+        # Save the new media
+        post_media.media.save(
+            filename,
+            ContentFile(new_media_content),
+            save=False,
+        )
+
+        # Update using queryset to avoid triggering signal again
+        PostMedia.objects.filter(id=post_media.id).update(
+            media=post_media.media.name,
+        )
+
+        logger.info("Media downloaded for post media %s", post_media_id)
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Media downloaded",
+            "old_hash": existing_media_hash,
+            "new_hash": new_media_hash,
+        }
+
+    except (requests.RequestException, OSError) as e:
+        # Retryable errors: network issues, S3 timeouts, temporary file access issues
+        logger.warning(
+            "Retryable error downloading media for post media %s (attempt %s/%s): %s",
+            post_media_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            e,
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries)) from e
+
+        logger.exception(
+            "Max retries exceeded for media download for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Max retries exceeded: {e!s}"}
+
+    except Exception as e:
+        # Non-retryable errors: permanent failures
+        logger.exception(
+            "Permanent error downloading media for post media %s",
             post_media_id,
         )
         return {"success": False, "error": f"Permanent error: {e!s}"}

@@ -33,7 +33,7 @@ class PostMediaAdmin(ModelAdmin):
             "General",
             {
                 "fields": (
-                    "post",
+                    ("post", "reference"),
                     ("thumbnail_url", "media_url"),
                     ("thumbnail", "media"),
                 ),

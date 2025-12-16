@@ -12,6 +12,7 @@ class PostMediaSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "thumbnail_url",
+            "blur_data_url",
             "media_url",
             "thumbnail",
             "media",
@@ -23,6 +24,7 @@ class PostMediaSerializer(serializers.ModelSerializer):
 class PostListSerializer(serializers.ModelSerializer):
     user = InstagramUserListSerializer(read_only=True)
     media_count = serializers.SerializerMethodField()
+    media = PostMediaSerializer(source="postmedia_set", many=True, read_only=True)
 
     class Meta:
         model = Post
@@ -33,8 +35,10 @@ class PostListSerializer(serializers.ModelSerializer):
             "thumbnail",
             "blur_data_url",
             "media_count",
+            "post_created_at",
             "created_at",
             "updated_at",
+            "media",
             "user",
         ]
 
@@ -55,8 +59,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
             "thumbnail_url",
             "thumbnail",
             "blur_data_url",
-            "media",
             "created_at",
             "updated_at",
+            "media",
             "user",
         ]

@@ -36,6 +36,13 @@ class GetUserPostMixIn:
             )
             obj.raw_data = post
             obj.thumbnail_url = post.get("display_uri")
+            # Convert epoch timestamp to timezone-aware datetime
+            taken_at = post.get("taken_at")
+            if taken_at:
+                obj.post_created_at = timezone.datetime.fromtimestamp(
+                    taken_at,
+                    tz=timezone.get_current_timezone(),
+                )
             obj.save()
 
     def update_posts_from_api_async(self):

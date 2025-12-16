@@ -74,6 +74,7 @@ class PostMediaFactory(DjangoModelFactory):
     """Factory for creating PostMedia instances for testing."""
 
     post = SubFactory(PostFactory)
+    reference = Faker("numerify", text="###################")
     thumbnail_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/6a2d71ab-80a5-477e-83a0-b4ea811816ff.jpg"
     media_url = "https://cdn.instarchiver.net/users/arter_tendean/posts/214d3932-ab14-45c2-874d-c5c65cdaf66e.mp4"
 
