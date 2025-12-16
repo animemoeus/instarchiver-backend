@@ -38,3 +38,16 @@ class InstagramUserHistoryCursorPagination(CursorPagination):
     max_page_size = 100
     ordering = "-history_date"  # Most recent history records first
     cursor_query_param = "cursor"
+
+
+class PostCursorPagination(CursorPagination):
+    """
+    Cursor pagination for Post list.
+    Orders by created_at (descending) for most recent posts first.
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    ordering = "-created_at"  # Most recent posts first
+    cursor_query_param = "cursor"

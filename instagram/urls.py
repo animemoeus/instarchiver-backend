@@ -4,6 +4,8 @@ from instagram.views import InstagramUserAddStoryCreditAPIView
 from instagram.views import InstagramUserDetailView
 from instagram.views import InstagramUserHistoryView
 from instagram.views import InstagramUserListCreateView
+from instagram.views import PostDetailView
+from instagram.views import PostListView
 from instagram.views import ProcessInstagramDataView
 from instagram.views import StoryDetailView
 from instagram.views import StoryListView
@@ -19,6 +21,8 @@ urlpatterns = [
     ),
     path("stories/", StoryListView.as_view(), name="story_list"),
     path("stories/<str:story_id>/", StoryDetailView.as_view(), name="story_detail"),
+    path("posts/", PostListView.as_view(), name="post_list"),
+    path("posts/<str:id>/", PostDetailView.as_view(), name="post_detail"),
     path(
         "users/<uuid:uuid>/history/",
         InstagramUserHistoryView.as_view(),

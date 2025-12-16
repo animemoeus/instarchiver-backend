@@ -13,7 +13,16 @@ from instagram.models import User
 
 @admin.register(User)
 class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
-    actions_detail = ["update_from_api", "update_stories_from_api"]
+    actions_detail = [
+        {
+            "title": "Actions",
+            "items": [
+                "update_from_api",
+                "update_stories_from_api",
+                "update_posts_from_api",
+            ],
+        },
+    ]
     list_display = [
         "username",
         "full_name",
@@ -83,7 +92,8 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
     ordering = ["-created_at"]
 
     @action(
-        description=_("Update from Instagram API"),
+        description=_("Update Profile"),
+        icon="refresh",
         url_path="update-from-api",
         permissions=["change"],
     )
@@ -105,7 +115,8 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
 
     @action(
-        description=_("Update stories from Instagram API"),
+        description=_("Update Stories"),
+        icon="refresh",
         url_path="update-stories-from-api",
         permissions=["change"],
     )
@@ -122,6 +133,29 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
             messages.error(
                 request,
                 "Failed to queue story update task: %s" % str(e),  # noqa: UP031
+            )
+
+        return redirect(reverse("admin:instagram_user_change", args=(object_id,)))
+
+    @action(
+        description=_("Update Posts"),
+        icon="refresh",
+        url_path="update-posts-from-api",
+        permissions=["change"],
+    )
+    def update_posts_from_api(self, request: HttpRequest, object_id: str):
+        """Update user posts from Instagram API asynchronously."""
+        try:
+            user = User.objects.get(pk=object_id)
+            task_result = user.update_posts_from_api_async()
+            messages.success(
+                request,
+                f"Successfully queued post update task for {user.username}. Task ID: {task_result.id}",  # noqa: E501
+            )
+        except Exception as e:  # noqa: BLE001
+            messages.error(
+                request,
+                "Failed to queue post update task: %s" % str(e),  # noqa: UP031
             )
 
         return redirect(reverse("admin:instagram_user_change", args=(object_id,)))

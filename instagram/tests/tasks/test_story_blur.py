@@ -15,7 +15,7 @@ class TestStoryGenerateBlurDataUrl(TestCase):
     """Tests for the story_generate_blur_data_url Celery task."""
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("instagram.utils.generate_blur_data_url_from_image_url")
+    @patch("instagram.tasks.story.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_success(
         self,
         mock_generate_blur,
@@ -55,7 +55,7 @@ class TestStoryGenerateBlurDataUrl(TestCase):
         assert "not found" in result.result["error"].lower()
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("instagram.utils.generate_blur_data_url_from_image_url")
+    @patch("instagram.tasks.story.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_saves_to_model(
         self,
         mock_generate_blur,
@@ -76,7 +76,7 @@ class TestStoryGenerateBlurDataUrl(TestCase):
         assert story.blur_data_url == test_blur_data
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    @patch("instagram.utils.generate_blur_data_url_from_image_url")
+    @patch("instagram.tasks.story.generate_blur_data_url_from_image_url")
     def test_story_generate_blur_data_url_network_error_retry(
         self,
         mock_generate_blur,

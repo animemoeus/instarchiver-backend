@@ -7,13 +7,49 @@ from simple_history.models import HistoricalRecords
 
 from core.utils.instagram_api import fetch_user_info_by_user_id
 from core.utils.instagram_api import fetch_user_info_by_username_v2
+from core.utils.instagram_api import fetch_user_posts_by_username
 from core.utils.instagram_api import fetch_user_stories_by_username
 from instagram.misc import get_user_profile_picture_upload_location
 
 logger = logging.getLogger(__name__)
 
 
-class User(models.Model):
+class GetUserPostMixIn:
+    """Mixin class to add post-related functionality to User model."""
+
+    def get_post_data_from_api(self):
+        if not self.instagram_id:
+            msg = f"User {self.username} has no Instagram ID"
+            raise ValueError(msg)
+
+        response = fetch_user_posts_by_username(self.instagram_id)
+        return response.get("data").get("items", [])
+
+    def update_post_data_from_api(self):
+        from instagram.models import Post  # noqa: PLC0415
+
+        posts = self.get_post_data_from_api()
+        for post in posts:
+            obj, _ = Post.objects.update_or_create(
+                id=post.get("pk"),
+                user=self,
+            )
+            obj.raw_data = post
+            obj.thumbnail_url = post.get("display_uri")
+            obj.save()
+
+    def update_posts_from_api_async(self):
+        """
+        Trigger asynchronous update of user posts from Instagram API.
+        Use this method to queue the post update as a background task.
+        """
+        from instagram.tasks import update_user_posts_from_api  # noqa: PLC0415
+
+        logger.info("Queuing post update task for user %s", self.username)
+        return update_user_posts_from_api.delay(self.uuid)
+
+
+class User(models.Model, GetUserPostMixIn):
     uuid = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
     instagram_id = models.CharField(max_length=50, unique=True, blank=True, null=True)
