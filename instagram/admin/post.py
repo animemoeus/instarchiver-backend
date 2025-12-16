@@ -1,20 +1,18 @@
 from django.contrib import admin
 from simple_history.admin import SimpleHistoryAdmin
 from unfold.admin import ModelAdmin
-from unfold.admin import TabularInline
+from unfold.admin import StackedInline
 
 from instagram.models import Post
 from instagram.models import PostMedia
 
 
-class PostMediaInline(TabularInline):
+class PostMediaInline(StackedInline):
     """Inline admin for PostMedia."""
 
     model = PostMedia
     extra = 0
     fields = [
-        "thumbnail_url",
-        "media_url",
         "thumbnail",
         "media",
     ]
@@ -22,6 +20,7 @@ class PostMediaInline(TabularInline):
         "thumbnail_url",
         "media_url",
     ]
+    tab = True
 
 
 @admin.register(Post)
