@@ -30,7 +30,8 @@ class PostListView(ListAPIView):
     ]
     search_fields = ["user__username", "user__full_name", "user__biography"]
     filterset_fields = ["user", "variant"]
-    ordering_fields = ["created_at", "updated_at"]
+    ordering_fields = ["created_at", "updated_at", "post_created_at"]
+    ordering = "-post_created_at"
 
     def get_queryset(self):
         # Annotate users with has_stories and has_history
