@@ -15,7 +15,7 @@ def post_post_save(sender, instance, created, **kwargs):
     """
     Trigger tasks when Post is saved.
     - Downloads thumbnail if needed
-    - Processes carousel media if needed (works on creation and updates)
+    - Processes post based on type (normal, carousel, or video)
     Uses transaction.on_commit() to ensure tasks run after DB commit.
     """
     # Only trigger if we have a thumbnail URL but no thumbnail file
@@ -31,15 +31,16 @@ def post_post_save(sender, instance, created, **kwargs):
 
         transaction.on_commit(queue_thumbnail_task)
 
-    # Carousel handling - triggers on both creation and updates
-    # Safe to call multiple times due to get_or_create in _handle_post_carousel
-    if instance.raw_data and instance.raw_data.get("carousel_media"):
+    # Post type handling - triggers on both creation and updates
+    # Safe to call multiple times due to get_or_create in handler methods
+    if instance.raw_data:
 
-        def queue_carousel_processing():
-            instance.handle_post_carousel()
+        def queue_post_processing():
+            instance.process_post_by_type()
             logger.info(
-                "Carousel media processed for post %s",
+                "Post processing completed for post %s (variant: %s)",
                 instance.id,
+                instance.variant,
             )
 
-        transaction.on_commit(queue_carousel_processing)
+        transaction.on_commit(queue_post_processing)

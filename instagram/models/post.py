@@ -54,6 +54,26 @@ class Post(models.Model):
 
         post_generate_blur_data_url.delay(self.id)
 
+    def process_post_by_type(self):
+        """
+        Determines the post type from raw_data and calls the appropriate handler.
+        - Carousel posts: have carousel_media in raw_data
+        - Video posts: have video_versions in raw_data
+        - Normal posts: single image posts (default)
+
+        This method is idempotent and safe to call multiple times.
+        """
+        if not self.raw_data:
+            return
+
+        # Determine post type and call appropriate handler
+        if self.raw_data.get("carousel_media"):
+            self.handle_post_carousel()
+        elif self.raw_data.get("video_versions"):
+            self.handle_post_video()
+        else:
+            self.handle_post_normal()
+
     def handle_post_normal(self):
         """
         Handles the post normal variant.
