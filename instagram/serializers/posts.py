@@ -55,8 +55,8 @@ class PostDetailSerializer(serializers.ModelSerializer):
             "thumbnail_url",
             "thumbnail",
             "blur_data_url",
-            "media",
             "created_at",
             "updated_at",
+            "media",
             "user",
         ]

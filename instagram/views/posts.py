@@ -9,6 +9,7 @@ from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 
 from instagram.models import Post
+from instagram.models import PostMedia
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import PostCursorPagination
@@ -66,7 +67,10 @@ class PostDetailView(RetrieveAPIView):
             ),
         )
 
+        # Order PostMedia by created_at to ensure consistent ordering
+        ordered_postmedia = PostMedia.objects.order_by("-reference")
+
         return Post.objects.all().prefetch_related(
             Prefetch("user", queryset=annotated_users),
-            "postmedia_set",
+            Prefetch("postmedia_set", queryset=ordered_postmedia),
         )
