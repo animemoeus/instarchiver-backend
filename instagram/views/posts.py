@@ -41,11 +41,14 @@ class PostListView(ListAPIView):
             ),
         )
 
+        # Order PostMedia by reference to ensure consistent ordering
+        ordered_postmedia = PostMedia.objects.order_by("-reference")
+
         return (
             Post.objects.all()
             .prefetch_related(
                 Prefetch("user", queryset=annotated_users),
-                "postmedia_set",
+                Prefetch("postmedia_set", queryset=ordered_postmedia),
             )
             .annotate(media_count=Count("postmedia"))
             .order_by("-created_at")
