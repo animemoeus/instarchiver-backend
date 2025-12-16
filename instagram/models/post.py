@@ -9,10 +9,12 @@ from instagram.models.user import User
 class Post(models.Model):
     POST_VARIANT_NORMAL = "normal"
     POST_VARIANT_CAROUSEL = "carousel"
+    POST_VARIANT_VIDEO = "video"
 
     POST_VARIANTS = (
         (POST_VARIANT_NORMAL, "Normal"),
         (POST_VARIANT_CAROUSEL, "Carousel"),
+        (POST_VARIANT_VIDEO, "Video"),
     )
 
     id = models.CharField(max_length=50, primary_key=True, unique=True)
@@ -104,6 +106,32 @@ class Post(models.Model):
                     "media_url": media.get("display_uri"),
                 },
             )
+
+    def handle_post_video(self):
+        """
+        Handles the post video variant.
+        Idempotent - safe to call multiple times.
+        """
+
+        # Use update() to avoid triggering post_save signal
+        Post.objects.filter(id=self.id).update(variant=self.POST_VARIANT_VIDEO)
+        # Update local instance to reflect change
+        self.variant = self.POST_VARIANT_VIDEO
+
+        # If no video_versions, it's not a video post
+        if self.raw_data and not self.raw_data.get("video_versions"):
+            return
+
+        PostMedia.objects.get_or_create(
+            post=self,
+            reference=self.raw_data.get("id"),
+            defaults={
+                "thumbnail_url": self.raw_data.get("image_versions2")
+                .get("candidates")[0]
+                .get("url"),
+                "media_url": self.raw_data.get("video_versions")[0].get("url"),
+            },
+        )
 
     def _get_post_details_from_api(self):
         """
