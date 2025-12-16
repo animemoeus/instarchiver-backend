@@ -52,20 +52,22 @@ class Post(models.Model):
 
         post_generate_blur_data_url.delay(self.id)
 
-    def _handle_post_carousel(self):
+    def handle_post_carousel(self):
         """
         Handles the post carousel variant.
+        Idempotent - safe to call multiple times.
         """
 
-        # Update variant to carousel
+        # Use update() to avoid triggering post_save signal
+        Post.objects.filter(id=self.id).update(variant=self.POST_VARIANT_CAROUSEL)
+        # Update local instance to reflect change
         self.variant = self.POST_VARIANT_CAROUSEL
-        self.save()
 
         # Create PostMedia objects for each media in the carousel
         carousel_media = self.raw_data.get("carousel_media", [])
 
         for media in carousel_media:
-            obj, _ = PostMedia.objects.get_or_create(
+            _, _ = PostMedia.objects.get_or_create(
                 post=self,
                 reference=media.get("strong_id__"),
                 defaults={
