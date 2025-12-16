@@ -278,6 +278,68 @@ def download_post_thumbnail_from_url(self, post_id):
         return {"success": False, "error": f"Permanent error: {e!s}"}
 
 
+def _download_file_from_url(url: str, timeout: int = 30) -> bytes:
+    """
+    Download file content from URL.
+
+    Args:
+        url: URL to download from
+        timeout: Request timeout in seconds
+
+    Returns:
+        File content as bytes
+
+    Raises:
+        requests.RequestException: If download fails
+    """
+    response = requests.get(url, timeout=timeout)
+    response.raise_for_status()
+    return response.content
+
+
+def _get_file_hash(file_field) -> str | None:
+    """
+    Calculate SHA256 hash of a file field.
+
+    Args:
+        file_field: Django FileField or ImageField instance
+
+    Returns:
+        Hex digest of file hash, or None if file doesn't exist or can't be read
+    """
+    if not file_field:
+        return None
+
+    try:
+        with file_field.open("rb") as f:
+            content = f.read()
+            return hashlib.sha256(content).hexdigest()
+    except OSError as e:
+        logger.warning("Could not read file: %s", e)
+        return None
+
+
+def _determine_file_extension(response: requests.Response, url: str) -> str:
+    """
+    Determine file extension from response headers or URL.
+
+    Args:
+        response: HTTP response object
+        url: Original URL
+
+    Returns:
+        File extension (without dot)
+    """
+    content_type = response.headers.get("content-type", "")
+    if "video" in content_type:
+        return "mp4"
+    if "image" in content_type:
+        return "jpg"
+
+    # Fallback: try to get from URL
+    return url.split(".")[-1].split("?")[0] or "jpg"
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def download_post_media_thumbnail_from_url(self, post_media_id):
     """
@@ -302,26 +364,11 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
 
     try:
         # Download image from URL
-        response = requests.get(post_media.thumbnail_url, timeout=30)
-        response.raise_for_status()
-
-        # Calculate hash of downloaded image content
-        new_image_content = response.content
+        new_image_content = _download_file_from_url(post_media.thumbnail_url)
         new_image_hash = hashlib.sha256(new_image_content).hexdigest()
 
         # Get hash of existing thumbnail if it exists
-        existing_image_hash = None
-        if post_media.thumbnail:
-            try:
-                with post_media.thumbnail.open("rb") as f:
-                    existing_content = f.read()
-                    existing_image_hash = hashlib.sha256(existing_content).hexdigest()
-            except OSError as e:
-                logger.warning(
-                    "Could not read existing thumbnail for post media %s: %s",
-                    post_media_id,
-                    e,
-                )
+        existing_image_hash = _get_file_hash(post_media.thumbnail)
 
         # Compare hashes - only update if different
         if existing_image_hash == new_image_hash:
@@ -374,6 +421,98 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
         # Non-retryable errors: permanent failures
         logger.exception(
             "Permanent error downloading thumbnail for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Permanent error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def download_post_media_from_url(self, post_media_id):
+    """
+    Download post media file from URL if content has changed.
+    Uses hash comparison to detect actual media content changes.
+
+    Args:
+        post_media_id (int): ID of the post media to download media for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post_media = PostMedia.objects.get(id=post_media_id)
+    except PostMedia.DoesNotExist:
+        logger.exception("PostMedia with ID %s not found", post_media_id)
+        return {"success": False, "error": "PostMedia not found"}
+
+    if not post_media.media_url:
+        logger.info("No media URL for post media %s", post_media_id)
+        return {"success": False, "error": "No media URL"}
+
+    try:
+        # Download media from URL
+        response = requests.get(post_media.media_url, timeout=30)
+        response.raise_for_status()
+
+        # Calculate hash of downloaded media content
+        new_media_content = response.content
+        new_media_hash = hashlib.sha256(new_media_content).hexdigest()
+
+        # Get hash of existing media if it exists
+        existing_media_hash = _get_file_hash(post_media.media)
+
+        # Compare hashes - only update if different
+        if existing_media_hash == new_media_hash:
+            logger.info("Media unchanged for post media %s", post_media_id)
+            return {"success": True, "message": "No changes detected"}
+
+        # Determine file extension from content-type or URL
+        extension = _determine_file_extension(response, post_media.media_url)
+
+        # Save new media
+        filename = f"post_media_{post_media_id}_media.{extension}"
+
+        # Save the new media
+        post_media.media.save(
+            filename,
+            ContentFile(new_media_content),
+            save=False,
+        )
+
+        # Update using queryset to avoid triggering signal again
+        PostMedia.objects.filter(id=post_media.id).update(
+            media=post_media.media.name,
+        )
+
+        logger.info("Media downloaded for post media %s", post_media_id)
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Media downloaded",
+            "old_hash": existing_media_hash,
+            "new_hash": new_media_hash,
+        }
+
+    except (requests.RequestException, OSError) as e:
+        # Retryable errors: network issues, S3 timeouts, temporary file access issues
+        logger.warning(
+            "Retryable error downloading media for post media %s (attempt %s/%s): %s",
+            post_media_id,
+            self.request.retries + 1,
+            self.max_retries + 1,
+            e,
+        )
+        if self.request.retries < self.max_retries:
+            raise self.retry(exc=e, countdown=60 * (2**self.request.retries)) from e
+
+        logger.exception(
+            "Max retries exceeded for media download for post media %s",
+            post_media_id,
+        )
+        return {"success": False, "error": f"Max retries exceeded: {e!s}"}
+
+    except Exception as e:
+        # Non-retryable errors: permanent failures
+        logger.exception(
+            "Permanent error downloading media for post media %s",
             post_media_id,
         )
         return {"success": False, "error": f"Permanent error: {e!s}"}
