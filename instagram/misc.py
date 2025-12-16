@@ -20,4 +20,10 @@ def get_post_media_upload_location(instance, filename):
     # Generate random UUID filename while preserving extension
     file_extension = Path(filename).suffix
     random_filename = str(uuid.uuid4())
-    return f"posts/{instance.user.username}/{random_filename}{file_extension}"
+    # PostMedia accesses user via post.user, Post accesses user directly
+    username = (
+        instance.post.user.username
+        if hasattr(instance, "post")
+        else instance.user.username
+    )
+    return f"posts/{username}/{random_filename}{file_extension}"
