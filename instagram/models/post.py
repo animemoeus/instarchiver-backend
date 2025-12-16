@@ -182,6 +182,7 @@ class PostMedia(models.Model):
 
     thumbnail_url = models.URLField(max_length=2500)
     media_url = models.URLField(max_length=2500)
+    blur_data_url = models.TextField(blank=True)
 
     thumbnail = models.ImageField(
         upload_to=get_post_media_upload_location,
@@ -202,3 +203,12 @@ class PostMedia(models.Model):
 
     def __str__(self):
         return f"{self.post.user.username} - {self.post.id}"
+
+    def generate_blur_data_url_task(self):
+        """
+        Generates a blurred data URL from the thumbnail_url using a Celery task.
+        This method queues the blur data URL generation as a background task.
+        """
+        from instagram.tasks import post_media_generate_blur_data_url  # noqa: PLC0415
+
+        post_media_generate_blur_data_url.delay(self.id)

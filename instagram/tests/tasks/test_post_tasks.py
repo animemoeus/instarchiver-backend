@@ -11,7 +11,9 @@ from instagram.models import Post
 from instagram.tasks import download_post_media_thumbnail_from_url
 from instagram.tasks import download_post_thumbnail_from_url
 from instagram.tasks import periodic_generate_post_blur_data_urls
+from instagram.tasks import periodic_generate_post_media_blur_data_urls
 from instagram.tasks import post_generate_blur_data_url
+from instagram.tasks import post_media_generate_blur_data_url
 from instagram.tests.factories import PostFactory
 from instagram.tests.factories import PostMediaFactory
 
@@ -530,3 +532,222 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         # Verify the post media's thumbnail was updated
         post_media.refresh_from_db()
         assert post_media.thumbnail.name != ""
+
+
+class TestPostMediaGenerateBlurDataUrl(TestCase):
+    """Tests for the post_media_generate_blur_data_url Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_blur_data_url_from_image_url")
+    def test_post_media_generate_blur_data_url_success(self, mock_generate_blur):
+        """Test successful blur data URL generation and saving."""
+        # Create a test post media
+        post = PostFactory()
+        post_media = PostMediaFactory(post=post, blur_data_url="")
+
+        # Mock the utility function
+        mock_generate_blur.return_value = "base64encodedstring"
+
+        # Execute the task
+        result = post_media_generate_blur_data_url.delay(post_media.id)
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["post_media_id"] == post_media.id
+
+        # Verify the blur_data_url was saved to the model
+        post_media.refresh_from_db()
+        assert post_media.blur_data_url == "base64encodedstring"
+
+        # Verify the utility function was called
+        mock_generate_blur.assert_called_once()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_post_media_generate_blur_data_url_not_found(self):
+        """Test handling of non-existent post media."""
+        # Execute the task with non-existent post media ID
+        result = post_media_generate_blur_data_url.delay(999999)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "not found" in result.result["error"].lower()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_blur_data_url_from_image_url")
+    def test_post_media_generate_blur_data_url_saves_to_model(
+        self,
+        mock_generate_blur,
+    ):
+        """Test that blur_data_url is correctly saved to the PostMedia model."""
+        # Create a test post media
+        post = PostFactory()
+        post_media = PostMediaFactory(post=post, blur_data_url="")
+
+        # Mock the utility function with a specific value
+        test_blur_data = "test_base64_encoded_blur_data"
+        mock_generate_blur.return_value = test_blur_data
+
+        # Execute the task
+        post_media_generate_blur_data_url.delay(post_media.id)
+
+        # Verify the blur_data_url was saved
+        post_media.refresh_from_db()
+        assert post_media.blur_data_url == test_blur_data
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_blur_data_url_from_image_url")
+    def test_post_media_generate_blur_data_url_network_error_retry(
+        self,
+        mock_generate_blur,
+    ):
+        """Test retry logic on network errors."""
+        # Create a test post media
+        post = PostFactory()
+        post_media = PostMediaFactory(post=post, blur_data_url="")
+
+        # Mock a network error
+        mock_generate_blur.side_effect = Exception("Network timeout")
+
+        # Execute the task
+        result = post_media_generate_blur_data_url.delay(post_media.id)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "error" in result.result
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_blur_data_url_from_image_url")
+    def test_post_media_generate_blur_data_url_uses_thumbnail(
+        self,
+        mock_generate_blur,
+    ):
+        """Test that the task uses the correct thumbnail source."""
+        # Create a test post media with thumbnail
+        post = PostFactory()
+        post_media = PostMediaFactory(
+            post=post,
+            blur_data_url="",
+            thumbnail_url="https://example.com/thumbnail.jpg",
+        )
+
+        # Mock the utility function
+        mock_generate_blur.return_value = "base64encodedstring"
+
+        # Execute the task
+        post_media_generate_blur_data_url.delay(post_media.id)
+
+        # Verify the utility function was called
+        mock_generate_blur.assert_called_once()
+
+
+class TestPeriodicGeneratePostMediaBlurDataUrls(TestCase):
+    """Tests for the periodic_generate_post_media_blur_data_urls Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.post_media_generate_blur_data_url.delay")
+    def test_periodic_generate_post_media_blur_data_urls_success(
+        self,
+        mock_task_delay,
+    ):
+        """Test successful queuing of blur data URL generation tasks."""
+        # Create post media without blur_data_url
+        post = PostFactory()
+        PostMediaFactory(post=post, blur_data_url="")
+        PostMediaFactory(post=post, blur_data_url="")
+        PostMediaFactory(post=post, blur_data_url="")
+
+        # Create a post media with blur_data_url (should be skipped)
+        PostMediaFactory(post=post, blur_data_url="existing_blur_data")
+
+        # Mock the task delay to return a mock result
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_media_blur_data_urls.delay()
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 3  # noqa: PLR2004
+        assert result.result["queued"] == 3  # noqa: PLR2004
+        assert result.result["errors"] == 0
+
+        # Verify post_media_generate_blur_data_url was called for each post media
+        assert mock_task_delay.call_count == 3  # noqa: PLR2004
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_periodic_generate_post_media_blur_data_urls_no_items(self):
+        """Test when no post media need processing."""
+        # Create only post media with blur_data_url
+        post = PostFactory()
+        PostMediaFactory(post=post, blur_data_url="existing_blur_data_1")
+        PostMediaFactory(post=post, blur_data_url="existing_blur_data_2")
+
+        # Execute the task
+        result = periodic_generate_post_media_blur_data_urls.delay()
+
+        # Verify the task returns success with no items processed
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["queued"] == 0
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.post_media_generate_blur_data_url.delay")
+    def test_periodic_generate_post_media_blur_data_urls_only_empty_blur_data(
+        self,
+        mock_task_delay,
+    ):
+        """Test that only post media without blur_data_url are processed."""
+        # Create post media with and without blur_data_url
+        post = PostFactory()
+        post_media_without_blur = PostMediaFactory(post=post, blur_data_url="")
+        PostMediaFactory(post=post, blur_data_url="has_blur_data")
+
+        # Mock the task delay
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_media_blur_data_urls.delay()
+
+        # Verify only one post media was queued
+        assert result.result["total"] == 1
+        assert result.result["queued"] == 1
+
+        # Verify the correct post media was queued
+        mock_task_delay.assert_called_once_with(post_media_without_blur.id)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.post_media_generate_blur_data_url.delay")
+    def test_periodic_generate_post_media_blur_data_urls_error_handling(
+        self,
+        mock_task_delay,
+    ):
+        """Test error handling when queuing tasks fails."""
+        # Create post media without blur_data_url
+        post = PostFactory()
+        PostMediaFactory(post=post, blur_data_url="")
+        PostMediaFactory(post=post, blur_data_url="")
+
+        # Mock the task delay to raise an exception for the first item
+        mock_task_delay.side_effect = [
+            Exception("Task queue error"),
+            Mock(id="task-id-123"),
+        ]
+
+        # Execute the task
+        result = periodic_generate_post_media_blur_data_urls.delay()
+
+        # Verify the task completed with errors
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 2  # noqa: PLR2004
+        assert result.result["queued"] == 1
+        assert result.result["errors"] == 1
+        assert result.result["error_details"] is not None
