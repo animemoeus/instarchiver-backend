@@ -52,6 +52,35 @@ class Post(models.Model):
 
         post_generate_blur_data_url.delay(self.id)
 
+    def handle_post_normal(self):
+        """
+        Handles the post normal variant.
+        Idempotent - safe to call multiple times.
+        """
+
+        # If carousel_media exists, it's a carousel post
+        if self.raw_data and self.raw_data.get("carousel_media"):
+            return
+
+        # Use update() to avoid triggering post_save signal
+        Post.objects.filter(id=self.id).update(variant=self.POST_VARIANT_NORMAL)
+        # Update local instance to reflect change
+        self.variant = self.POST_VARIANT_NORMAL
+
+        # Create PostMedia object for the post
+        PostMedia.objects.get_or_create(
+            post=self,
+            reference=self.raw_data.get("id"),
+            defaults={
+                "thumbnail_url": self.raw_data.get("image_versions2")
+                .get("candidates")[0]
+                .get("url"),
+                "media_url": self.raw_data.get("image_versions2")
+                .get("candidates")[0]
+                .get("url"),
+            },
+        )
+
     def handle_post_carousel(self):
         """
         Handles the post carousel variant.
