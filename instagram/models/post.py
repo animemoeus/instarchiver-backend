@@ -30,6 +30,8 @@ class Post(models.Model):
         blank=True,
         null=True,
     )
+    width = models.IntegerField(blank=True, null=True)
+    height = models.IntegerField(blank=True, null=True)
     blur_data_url = models.TextField(blank=True)
     raw_data = models.JSONField(blank=True, null=True)
     post_created_at = models.DateTimeField(default=timezone.now)
@@ -194,6 +196,8 @@ class PostMedia(models.Model):
         blank=True,
         null=True,
     )
+    width = models.IntegerField(blank=True, null=True)
+    height = models.IntegerField(blank=True, null=True)
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

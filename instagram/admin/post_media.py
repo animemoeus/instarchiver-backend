@@ -27,6 +27,8 @@ class PostMediaAdmin(ModelAdmin):
         "updated_at",
         "thumbnail_url",
         "media_url",
+        "width",
+        "height",
     ]
     fieldsets = (
         (
@@ -35,6 +37,7 @@ class PostMediaAdmin(ModelAdmin):
                 "fields": (
                     ("post", "reference"),
                     ("thumbnail_url", "media_url"),
+                    ("width", "height"),
                     ("thumbnail", "media"),
                 ),
                 "classes": ["tab"],
