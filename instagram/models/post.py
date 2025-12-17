@@ -62,6 +62,15 @@ class Post(models.Model):
 
         post_generate_blur_data_url.delay(self.id)
 
+    def generate_thumbnail_insight_task(self):
+        """
+        Generates AI-powered thumbnail insight using a Celery task.
+        This method queues the thumbnail insight generation as a background task.
+        """
+        from instagram.tasks import generate_post_thumbnail_insight  # noqa: PLC0415
+
+        generate_post_thumbnail_insight.delay(self.id)
+
     def generate_thumbnail_insight(self):
         """
         Generate AI-powered insight for the post thumbnail using OpenAI Vision API.

@@ -14,6 +14,7 @@ from instagram.tasks import download_post_thumbnail_from_url
 from instagram.tasks import generate_post_thumbnail_insight
 from instagram.tasks import periodic_generate_post_blur_data_urls
 from instagram.tasks import periodic_generate_post_media_blur_data_urls
+from instagram.tasks import periodic_generate_post_thumbnail_insights
 from instagram.tasks import post_generate_blur_data_url
 from instagram.tasks import post_media_generate_blur_data_url
 from instagram.tests.factories import PostFactory
@@ -1110,3 +1111,255 @@ class TestGeneratePostThumbnailInsight(TestCase):
         assert result.result["success"] is False
         # Verify attempts were made
         assert "attempts" in result.result
+
+
+class TestPeriodicGeneratePostThumbnailInsights(TestCase):
+    """Tests for the periodic_generate_post_thumbnail_insights Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.download_post_thumbnail_from_url.delay")
+    @patch("instagram.tasks.post.generate_post_thumbnail_insight.delay")
+    def test_periodic_generate_post_thumbnail_insights_success(
+        self,
+        mock_task_delay,
+        mock_download_delay,
+    ):
+        """Test successful queuing of thumbnail insight generation tasks."""
+        # Ensure clean state
+        Post.objects.all().delete()
+
+        # Create posts with thumbnails but no insights
+        post1 = PostFactory(thumbnail_insight="")
+        post1.thumbnail.save(
+            "test_thumbnail1.jpg",
+            ContentFile(b"thumbnail1_content"),
+            save=True,
+        )
+
+        post2 = PostFactory(thumbnail_insight="")
+        post2.thumbnail.save(
+            "test_thumbnail2.jpg",
+            ContentFile(b"thumbnail2_content"),
+            save=True,
+        )
+
+        post3 = PostFactory(thumbnail_insight="")
+        post3.thumbnail.save(
+            "test_thumbnail3.jpg",
+            ContentFile(b"thumbnail3_content"),
+            save=True,
+        )
+
+        # Create a post with insight (should be skipped)
+        PostFactory(thumbnail_insight="existing insight", thumbnail_url="")
+
+        # Create a post without thumbnail (should be skipped)
+        PostFactory(thumbnail_insight="", thumbnail_url="")
+
+        # Mock the task delay to return a mock result
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 3  # noqa: PLR2004
+        assert result.result["queued"] == 3  # noqa: PLR2004
+        assert result.result["errors"] == 0
+
+        # Verify generate_post_thumbnail_insight was called for each post
+        assert mock_task_delay.call_count == 3  # noqa: PLR2004
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.download_post_thumbnail_from_url.delay")
+    def test_periodic_generate_post_thumbnail_insights_no_posts(
+        self,
+        mock_download_delay,
+    ):
+        """Test when no posts need processing."""
+        # Ensure clean state
+        Post.objects.all().delete()
+
+        # Create only posts with insights or without thumbnails
+        PostFactory(thumbnail_insight="existing insight 1", thumbnail_url="")
+        PostFactory(thumbnail_insight="existing insight 2", thumbnail_url="")
+        PostFactory(thumbnail_insight="", thumbnail_url="")  # No thumbnail
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify the task returns success with no posts processed
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["queued"] == 0
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_thumbnail_insight.delay")
+    def test_periodic_generate_post_thumbnail_insights_only_empty_insights(
+        self,
+        mock_task_delay,
+    ):
+        """Test that only posts without insights are processed."""
+        # Create post with thumbnail but no insight
+        post_without_insight = PostFactory(thumbnail_insight="")
+        post_without_insight.thumbnail.save(
+            "test_thumbnail.jpg",
+            ContentFile(b"thumbnail_content"),
+            save=True,
+        )
+
+        # Create post with insight (should be skipped)
+        PostFactory(thumbnail_insight="has insight", thumbnail_url="")
+
+        # Mock the task delay
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify only one post was queued
+        assert result.result["total"] == 1
+        assert result.result["queued"] == 1
+
+        # Verify the correct post was queued
+        mock_task_delay.assert_called_once_with(post_without_insight.id)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_thumbnail_insight.delay")
+    def test_periodic_generate_post_thumbnail_insights_error_handling(
+        self,
+        mock_task_delay,
+    ):
+        """Test error handling when queuing tasks fails."""
+        # Create posts with thumbnails but no insights
+        post1 = PostFactory(thumbnail_insight="")
+        post1.thumbnail.save(
+            "test_thumbnail1.jpg",
+            ContentFile(b"thumbnail1_content"),
+            save=True,
+        )
+
+        post2 = PostFactory(thumbnail_insight="")
+        post2.thumbnail.save(
+            "test_thumbnail2.jpg",
+            ContentFile(b"thumbnail2_content"),
+            save=True,
+        )
+
+        # Mock the task delay to raise an exception for the first post
+        mock_task_delay.side_effect = [
+            Exception("Task queue error"),
+            Mock(id="task-id-123"),
+        ]
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify the task completed with errors
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 2  # noqa: PLR2004
+        assert result.result["queued"] == 1
+        assert result.result["errors"] == 1
+        assert result.result["error_details"] is not None
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_thumbnail_insight.delay")
+    def test_periodic_generate_post_thumbnail_insights_task_ids(
+        self,
+        mock_task_delay,
+    ):
+        """Test that task IDs are returned correctly."""
+        # Create posts with thumbnails but no insights
+        post1 = PostFactory(thumbnail_insight="")
+        post1.thumbnail.save(
+            "test_thumbnail1.jpg",
+            ContentFile(b"thumbnail1_content"),
+            save=True,
+        )
+
+        post2 = PostFactory(thumbnail_insight="")
+        post2.thumbnail.save(
+            "test_thumbnail2.jpg",
+            ContentFile(b"thumbnail2_content"),
+            save=True,
+        )
+
+        # Mock the task delay with different task IDs
+        mock_task_delay.side_effect = [
+            Mock(id="task-id-1"),
+            Mock(id="task-id-2"),
+        ]
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify task IDs are returned
+        assert result.result["success"] is True
+        assert len(result.result["task_ids"]) == 2  # noqa: PLR2004
+        assert "task-id-1" in result.result["task_ids"]
+        assert "task-id-2" in result.result["task_ids"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_periodic_generate_post_thumbnail_insights_empty_database(self):
+        """Test when there are no posts in the database."""
+        # Ensure no posts exist
+        Post.objects.all().delete()
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify the task returns success with no posts
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["queued"] == 0
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.download_post_thumbnail_from_url.delay")
+    @patch("instagram.tasks.post.generate_post_thumbnail_insight.delay")
+    def test_periodic_generate_post_thumbnail_insights_filters_correctly(
+        self,
+        mock_task_delay,
+        mock_download_delay,
+    ):
+        """Test that the filter correctly identifies posts needing insights."""
+        # Ensure clean state
+        Post.objects.all().delete()
+
+        # Create post with thumbnail and no insight (should be queued)
+        post_needs_insight = PostFactory(thumbnail_insight="")
+        post_needs_insight.thumbnail.save(
+            "test_thumbnail.jpg",
+            ContentFile(b"thumbnail_content"),
+            save=True,
+        )
+
+        # Create post with thumbnail and insight (should be skipped)
+        post_has_insight = PostFactory(thumbnail_insight="AI generated insight")
+        post_has_insight.thumbnail.save(
+            "test_thumbnail2.jpg",
+            ContentFile(b"thumbnail2_content"),
+            save=True,
+        )
+
+        # Create post without thumbnail (should be skipped)
+        PostFactory(thumbnail_insight="", thumbnail_url="")
+
+        # Mock the task delay
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_thumbnail_insights.delay()
+
+        # Verify only the post without insight was queued
+        assert result.result["total"] == 1
+        assert result.result["queued"] == 1
+        mock_task_delay.assert_called_once_with(post_needs_insight.id)

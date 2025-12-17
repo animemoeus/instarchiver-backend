@@ -646,6 +646,90 @@ def generate_post_thumbnail_insight(self, post_id: str) -> dict:
         }
 
 
+@shared_task
+def periodic_generate_post_thumbnail_insights():
+    """
+    Automatically generate thumbnail insights for posts that have thumbnails
+    but don't have insights yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    try:
+        # Get all posts with thumbnails but no insights
+        posts = Post.objects.filter(
+            thumbnail__isnull=False,
+            thumbnail_insight="",
+        )
+        total_posts = posts.count()
+
+        if total_posts == 0:
+            logger.info("No posts found without thumbnail insights")
+            return {
+                "success": True,
+                "message": "No posts to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting thumbnail insight generation for %d posts",
+            total_posts,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for post in posts:
+            try:
+                # Queue the thumbnail insight generation task
+                task_result = generate_post_thumbnail_insight.delay(post.id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued thumbnail insight generation for "
+                    "post: %s (task: %s)",
+                    post.id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue thumbnail insight generation for "
+                    f"post {post.id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing thumbnail insight generation for post %s",
+                    post.id,
+                )
+
+        logger.info(
+            "Thumbnail insight generation queuing completed: "
+            "%d queued, %d errors out of %d total posts",
+            queued_count,
+            error_count,
+            total_posts,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Thumbnail insight generation tasks queued",
+            "total": total_posts,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in periodic_generate_post_thumbnail_insights")
+        return {"success": False, "error": f"Critical error: {e!s}"}
+
+
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)
 def download_post_media_thumbnail_from_url(self, post_media_id):
     """
