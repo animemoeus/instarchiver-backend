@@ -279,8 +279,9 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
     """Tests for the download_post_thumbnail_from_url Celery task."""
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Image.open")
     @patch("instagram.tasks.post.requests.get")
-    def test_download_post_thumbnail_success(self, mock_get):
+    def test_download_post_thumbnail_success(self, mock_get, mock_image_open):
         """Test successful thumbnail download and save."""
         post = PostFactory(thumbnail_url="https://example.com/thumbnail.jpg")
 
@@ -290,6 +291,11 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
+        # Mock PIL Image to return dimensions
+        mock_image = Mock()
+        mock_image.size = (1080, 1350)
+        mock_image_open.return_value = mock_image
+
         # Execute the task
         result = download_post_thumbnail_from_url.delay(post.id)
 
@@ -297,6 +303,13 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
         assert isinstance(result, EagerResult)
         assert result.result["success"] is True
         assert "Thumbnail downloaded" in result.result["message"]
+        assert result.result["width"] == 1080  # noqa: PLR2004
+        assert result.result["height"] == 1350  # noqa: PLR2004
+
+        # Verify the post was updated with dimensions
+        post.refresh_from_db()
+        assert post.width == 1080  # noqa: PLR2004
+        assert post.height == 1350  # noqa: PLR2004
 
         # Verify requests.get was called
         mock_get.assert_called_once_with(post.thumbnail_url, timeout=30)
@@ -371,9 +384,10 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
         assert "error" in result.result
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Image.open")
     @patch("instagram.tasks.post.requests.get")
-    def test_download_post_thumbnail_saves_file(self, mock_get):
-        """Test that thumbnail file is saved correctly."""
+    def test_download_post_thumbnail_saves_file(self, mock_get, mock_image_open):
+        """Test that thumbnail file is saved correctly with dimensions."""
         post = PostFactory(thumbnail_url="https://example.com/thumbnail.jpg")
 
         # Mock the HTTP response
@@ -382,6 +396,11 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
         mock_response.content = new_content
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
+
+        # Mock PIL Image to return dimensions
+        mock_image = Mock()
+        mock_image.size = (640, 640)
+        mock_image_open.return_value = mock_image
 
         # Execute the task
         result = download_post_thumbnail_from_url.delay(post.id)
@@ -392,14 +411,17 @@ class TestDownloadPostThumbnailFromUrl(TestCase):
         # Verify the post's thumbnail was updated
         post.refresh_from_db()
         assert post.thumbnail.name != ""
+        assert post.width == 640  # noqa: PLR2004
+        assert post.height == 640  # noqa: PLR2004
 
 
 class TestDownloadPostMediaThumbnailFromUrl(TestCase):
     """Tests for the download_post_media_thumbnail_from_url Celery task."""
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Image.open")
     @patch("instagram.tasks.post.requests.get")
-    def test_download_post_media_thumbnail_success(self, mock_get):
+    def test_download_post_media_thumbnail_success(self, mock_get, mock_image_open):
         """Test successful media thumbnail download and save."""
         # Create post with user first, then post media
         post = PostFactory()
@@ -414,6 +436,11 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
+        # Mock PIL Image to return dimensions
+        mock_image = Mock()
+        mock_image.size = (1080, 1920)
+        mock_image_open.return_value = mock_image
+
         # Execute the task
         result = download_post_media_thumbnail_from_url.delay(post_media.id)
 
@@ -421,6 +448,13 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         assert isinstance(result, EagerResult)
         assert result.result["success"] is True
         assert "Thumbnail downloaded" in result.result["message"]
+        assert result.result["width"] == 1080  # noqa: PLR2004
+        assert result.result["height"] == 1920  # noqa: PLR2004
+
+        # Verify the post media was updated with dimensions
+        post_media.refresh_from_db()
+        assert post_media.width == 1080  # noqa: PLR2004
+        assert post_media.height == 1920  # noqa: PLR2004
 
         # Verify requests.get was called
         mock_get.assert_called_once_with(post_media.thumbnail_url, timeout=30)
@@ -507,9 +541,10 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         assert "error" in result.result
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Image.open")
     @patch("instagram.tasks.post.requests.get")
-    def test_download_post_media_thumbnail_saves_file(self, mock_get):
-        """Test that media thumbnail file is saved correctly."""
+    def test_download_post_media_thumbnail_saves_file(self, mock_get, mock_image_open):
+        """Test that media thumbnail file is saved correctly with dimensions."""
         # Create post with user first, then post media
         post = PostFactory()
         post_media = PostMediaFactory(
@@ -524,6 +559,11 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         mock_response.raise_for_status = Mock()
         mock_get.return_value = mock_response
 
+        # Mock PIL Image to return dimensions
+        mock_image = Mock()
+        mock_image.size = (720, 1280)
+        mock_image_open.return_value = mock_image
+
         # Execute the task
         result = download_post_media_thumbnail_from_url.delay(post_media.id)
 
@@ -533,6 +573,8 @@ class TestDownloadPostMediaThumbnailFromUrl(TestCase):
         # Verify the post media's thumbnail was updated
         post_media.refresh_from_db()
         assert post_media.thumbnail.name != ""
+        assert post_media.width == 720  # noqa: PLR2004
+        assert post_media.height == 1280  # noqa: PLR2004
 
 
 class TestPostMediaGenerateBlurDataUrl(TestCase):
