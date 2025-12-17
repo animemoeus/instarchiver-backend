@@ -3,6 +3,7 @@ import logging
 
 from django.db import models
 from django.utils import timezone
+from pgvector.django import VectorField
 from simple_history.models import HistoricalRecords
 
 from core.utils.openai import get_openai_client
@@ -45,6 +46,7 @@ class Post(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+    embedding = VectorField(dimensions=1536, blank=True, null=True)
 
     history = HistoricalRecords()
 
