@@ -61,6 +61,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "height",
         "thumbnail_insight",
         "thumbnail_insight_token_usage",
+        "caption",
     ]
     fieldsets = (
         (
@@ -70,6 +71,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                     ("id", "post_created_at"),
                     ("user", "variant"),
                     ("width", "height"),
+                    "caption",
                     "thumbnail_url",
                     "thumbnail",
                     ("thumbnail_insight", "thumbnail_insight_token_usage"),
@@ -90,4 +92,4 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         ),
     )
     inlines = [PostMediaInline]
-    ordering = ["-created_at"]
+    ordering = ["-post_created_at", "-created_at"]
