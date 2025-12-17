@@ -28,7 +28,7 @@ class PostListView(ListAPIView):
         DjangoFilterBackend,
         filters.OrderingFilter,
     ]
-    search_fields = ["user__username", "user__full_name", "user__biography"]
+    search_fields = ["user__username", "user__full_name", "user__biography", "caption"]
     filterset_fields = ["user", "variant"]
     ordering_fields = ["created_at", "updated_at", "post_created_at"]
     ordering = "-post_created_at"

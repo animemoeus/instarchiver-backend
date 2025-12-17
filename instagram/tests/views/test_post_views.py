@@ -317,6 +317,34 @@ class PostListViewTest(TestCase):
         usernames = {post["user"]["username"] for post in results}
         assert usernames == {"user1", "user2"}
 
+    def test_search_by_caption(self):
+        """Test searching posts by caption content."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+        user3 = InstagramUserFactory(username="user3")
+
+        PostFactory.create_batch(
+            2,
+            user=user1,
+            caption="Beautiful sunset at the beach #sunset #nature",
+        )
+        PostFactory.create_batch(
+            2,
+            user=user2,
+            caption="Amazing sunset view from the mountains",
+        )
+        PostFactory.create_batch(1, user=user3, caption="City lights at night")
+
+        response = self.client.get(self.url, {"search": "sunset"})
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 4  # noqa: PLR2004
+
+        # All results should have "sunset" in caption
+        for post in results:
+            assert "sunset" in post["caption"].lower()
+
     def test_search_case_insensitive(self):
         """Test that search is case-insensitive."""
         user = InstagramUserFactory(username="TestUser", full_name="Test User")

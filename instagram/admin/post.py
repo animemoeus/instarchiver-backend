@@ -92,4 +92,4 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         ),
     )
     inlines = [PostMediaInline]
-    ordering = ["-created_at"]
+    ordering = ["-post_created_at", "-created_at"]
