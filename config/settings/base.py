@@ -99,6 +99,7 @@ THIRD_PARTY_APPS = [
     "django_filters",
     "simple_history",
     "solo",
+    "django_extensions",
 ]
 
 LOCAL_APPS = [
