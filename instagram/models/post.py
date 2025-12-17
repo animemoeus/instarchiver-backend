@@ -28,6 +28,7 @@ class Post(models.Model):
         choices=POST_VARIANTS,
         default=POST_VARIANT_NORMAL,
     )
+    caption = models.TextField(blank=True)
     thumbnail_url = models.URLField(max_length=2500)
     thumbnail = models.ImageField(
         upload_to=get_post_media_upload_location,

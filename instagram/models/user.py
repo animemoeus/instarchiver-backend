@@ -66,6 +66,7 @@ class GetUserPostMixIn:
             )
             obj.raw_data = post
             obj.thumbnail_url = post.get("display_uri")
+            obj.caption = post.get("caption").get("text") if post.get("caption") else ""
             # Convert epoch timestamp to timezone-aware datetime
             taken_at = post.get("taken_at")
             if taken_at:
