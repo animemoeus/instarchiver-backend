@@ -436,6 +436,13 @@ def download_post_thumbnail_from_url(self, post_id):
             width,
             height,
         )
+
+        # Queue thumbnail insight generation task
+        generate_post_thumbnail_insight.delay(post_id)
+        logger.info(
+            "Thumbnail insight generation task queued for post %s",
+            post_id,
+        )
         return {  # noqa: TRY300
             "success": True,
             "message": "Thumbnail downloaded",
@@ -532,6 +539,111 @@ def _determine_file_extension(response: requests.Response, url: str) -> str:
 
     # Fallback: try to get from URL
     return url.split(".")[-1].split("?")[0] or "jpg"
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def generate_post_thumbnail_insight(self, post_id: str) -> dict:
+    """
+    Generate AI-powered insight for a post thumbnail using OpenAI Vision API.
+    This is a background task that calls the Post model's
+    generate_thumbnail_insight method.
+
+    Args:
+        post_id (str): ID of the post to generate insight for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        logger.exception("Post with ID %s not found", post_id)
+        return {"success": False, "error": "Post not found"}
+
+    # Check if thumbnail exists
+    if not post.thumbnail:
+        logger.warning(
+            "No thumbnail file for post %s, cannot generate insight",
+            post_id,
+        )
+        return {"success": False, "error": "No thumbnail file"}
+
+    # Check if insight already exists
+    if post.thumbnail_insight:
+        logger.info("Thumbnail insight already exists for post %s", post_id)
+        return {"success": True, "message": "Insight already exists"}
+
+    try:
+        # Generate the insight
+        post.generate_thumbnail_insight()
+
+        logger.info(
+            "Successfully generated thumbnail insight for post %s (tokens: %s)",
+            post_id,
+            post.thumbnail_insight_token_usage,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully generated thumbnail insight",
+            "post_id": post_id,
+            "token_usage": post.thumbnail_insight_token_usage,
+        }
+
+    except ValueError as e:
+        # Non-retryable error (e.g., thumbnail doesn't exist)
+        logger.exception(
+            "ValueError generating thumbnail insight for post %s",
+            post_id,
+        )
+        return {"success": False, "error": f"ValueError: {e!s}"}
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+            "openai",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating thumbnail insight for post %s "
+                "(attempt %s/%s): %s",
+                post_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate thumbnail insight for post %s after %s attempts",
+            post_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "post_id": post_id,
+            "attempts": self.request.retries + 1,
+        }
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

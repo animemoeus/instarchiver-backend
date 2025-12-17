@@ -1,7 +1,12 @@
+import base64
+import logging
+from pathlib import Path
+
 from django.db import models
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
+from core.utils.openai import get_openai_client
 from instagram.misc import get_post_media_upload_location
 from instagram.models.user import User
 
@@ -30,6 +35,8 @@ class Post(models.Model):
         blank=True,
         null=True,
     )
+    thumbnail_insight = models.TextField(blank=True)
+    thumbnail_insight_token_usage = models.IntegerField(default=0)
     width = models.IntegerField(blank=True, null=True)
     height = models.IntegerField(blank=True, null=True)
     blur_data_url = models.TextField(blank=True)
@@ -55,6 +62,84 @@ class Post(models.Model):
         from instagram.tasks import post_generate_blur_data_url  # noqa: PLC0415
 
         post_generate_blur_data_url.delay(self.id)
+
+    def generate_thumbnail_insight(self):
+        """
+        Generate AI-powered insight for the post thumbnail using OpenAI Vision API.
+
+        This method encodes the thumbnail image and sends it to OpenAI's GPT-4 Vision
+        model to generate a descriptive insight about the post content.
+
+        Returns:
+            str: Generated insight text, or empty string if generation fails
+
+        Raises:
+            ValueError: If thumbnail file doesn't exist
+            ImproperlyConfigured: If OpenAI settings are not configured
+        """
+        logger = logging.getLogger(__name__)
+
+        # Check if thumbnail exists
+        if not self.thumbnail or not self.thumbnail.path:
+            msg = f"Thumbnail file does not exist for post {self.id}"
+            raise ValueError(msg)
+
+        try:
+            # Encode image to base64
+            thumbnail_path = Path(self.thumbnail.path)
+            with thumbnail_path.open("rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+            # Get OpenAI client and model
+            client = get_openai_client()
+            model_name = "gpt-5-mini"
+
+            # Create chat completion with vision
+            prompt_text = (
+                "Analyze this Instagram post image and provide a brief, "
+                "engaging insight about what's shown in the image. "
+                "Keep it concise (2-3 sentences)."
+            )
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt_text,
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
+                                },
+                            },
+                        ],
+                    },
+                ],
+            )
+
+            # Extract and save the insight
+            insight = response.choices[0].message.content.strip()
+            self.thumbnail_insight = insight
+            self.thumbnail_insight_token_usage = response.usage.total_tokens
+            self.save(
+                update_fields=["thumbnail_insight", "thumbnail_insight_token_usage"],
+            )
+
+        except FileNotFoundError:
+            logger.exception("Thumbnail file not found for post %s", self.id)
+            raise
+        except Exception:
+            logger.exception(
+                "Failed to generate thumbnail insight for post %s",
+                self.id,
+            )
+            return ""
+        else:
+            logger.info("Generated thumbnail insight for post %s", self.id)
 
     def process_post_by_type(self):
         """

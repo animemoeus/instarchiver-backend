@@ -11,6 +11,7 @@ from instagram.models import Post
 from instagram.tasks import download_post_media_from_url
 from instagram.tasks import download_post_media_thumbnail_from_url
 from instagram.tasks import download_post_thumbnail_from_url
+from instagram.tasks import generate_post_thumbnail_insight
 from instagram.tasks import periodic_generate_post_blur_data_urls
 from instagram.tasks import periodic_generate_post_media_blur_data_urls
 from instagram.tasks import post_generate_blur_data_url
@@ -966,3 +967,146 @@ class TestDownloadPostMediaFromUrl(TestCase):
         # Verify the file was saved with .mp4 extension
         post_media.refresh_from_db()
         assert post_media.media.name.endswith(".mp4")
+
+
+class TestGeneratePostThumbnailInsight(TestCase):
+    """Tests for the generate_post_thumbnail_insight Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Post.generate_thumbnail_insight")
+    def test_generate_post_thumbnail_insight_success(self, mock_generate_insight):
+        """Test successful thumbnail insight generation."""
+        # Create a post with a thumbnail
+        post = PostFactory()
+        # Mock that thumbnail exists
+        post.thumbnail.name = "test_thumbnail.jpg"
+        post.save()
+
+        # Mock the generate_thumbnail_insight method
+        mock_generate_insight.return_value = None
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert "Successfully generated thumbnail insight" in result.result["message"]
+
+        # Verify the model method was called
+        mock_generate_insight.assert_called_once()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_generate_post_thumbnail_insight_post_not_found(self):
+        """Test handling of non-existent post."""
+        # Execute the task with non-existent post ID
+        result = generate_post_thumbnail_insight.delay("nonexistent_post_id")
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "not found" in result.result["error"].lower()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_generate_post_thumbnail_insight_no_thumbnail(self):
+        """Test handling when post has no thumbnail file."""
+        # Create a post without a thumbnail
+        post = PostFactory()
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "No thumbnail file" in result.result["error"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Post.generate_thumbnail_insight")
+    def test_generate_post_thumbnail_insight_already_exists(
+        self,
+        mock_generate_insight,
+    ):
+        """Test that task skips generation if insight already exists."""
+        # Create a post with existing insight
+        post = PostFactory(thumbnail_insight="Existing insight")
+        post.thumbnail.name = "test_thumbnail.jpg"
+        post.save()
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task returns success without generating new insight
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert "already exists" in result.result["message"].lower()
+
+        # Verify the model method was NOT called
+        mock_generate_insight.assert_not_called()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Post.generate_thumbnail_insight")
+    def test_generate_post_thumbnail_insight_value_error(self, mock_generate_insight):
+        """Test handling of ValueError from model method."""
+        # Create a post with a thumbnail
+        post = PostFactory()
+        post.thumbnail.name = "test_thumbnail.jpg"
+        post.save()
+
+        # Mock the model method to raise ValueError
+        mock_generate_insight.side_effect = ValueError("Thumbnail file missing")
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task returns an error without retrying
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "ValueError" in result.result["error"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Post.generate_thumbnail_insight")
+    def test_generate_post_thumbnail_insight_retryable_error(
+        self,
+        mock_generate_insight,
+    ):
+        """Test retry logic for retryable errors."""
+        # Create a post with a thumbnail
+        post = PostFactory()
+        post.thumbnail.name = "test_thumbnail.jpg"
+        post.save()
+
+        # Mock the model method to raise a retryable error
+        mock_generate_insight.side_effect = Exception("OpenAI API timeout")
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task returns an error after retries
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "error" in result.result
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.Post.generate_thumbnail_insight")
+    def test_generate_post_thumbnail_insight_network_error_retry(
+        self,
+        mock_generate_insight,
+    ):
+        """Test that network errors trigger retry logic."""
+        # Create a post with a thumbnail
+        post = PostFactory()
+        post.thumbnail.name = "test_thumbnail.jpg"
+        post.save()
+
+        # Mock the model method to raise a network error
+        mock_generate_insight.side_effect = Exception("Network timeout")
+
+        # Execute the task
+        result = generate_post_thumbnail_insight.delay(post.id)
+
+        # Verify the task returns an error after retries
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        # Verify attempts were made
+        assert "attempts" in result.result
