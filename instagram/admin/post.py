@@ -13,10 +13,14 @@ class PostMediaInline(StackedInline):
     model = PostMedia
     extra = 0
     fields = [
+        "width",
+        "height",
         "thumbnail",
         "media",
     ]
     readonly_fields = [
+        "width",
+        "height",
         "thumbnail_url",
         "media_url",
     ]
@@ -53,6 +57,8 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "raw_data",
         "blur_data_url",
         "post_created_at",
+        "width",
+        "height",
     ]
     fieldsets = (
         (
@@ -61,6 +67,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                 "fields": (
                     ("id", "post_created_at"),
                     ("user", "variant"),
+                    ("width", "height"),
                     "thumbnail_url",
                     "thumbnail",
                     "blur_data_url",

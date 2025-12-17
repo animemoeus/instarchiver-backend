@@ -1,9 +1,11 @@
 import hashlib
 import logging
+from io import BytesIO
 
 import requests
 from celery import shared_task
 from django.core.files.base import ContentFile
+from PIL import Image
 
 from instagram.models import Post
 from instagram.models import PostMedia
@@ -399,6 +401,18 @@ def download_post_thumbnail_from_url(self, post_id):
             logger.info("Thumbnail unchanged for post %s", post_id)
             return {"success": True, "message": "No changes detected"}
 
+        # Get image dimensions
+        try:
+            image = Image.open(BytesIO(new_image_content))
+            width, height = image.size
+        except (OSError, ValueError) as e:
+            logger.warning(
+                "Could not determine image dimensions for post %s: %s",
+                post_id,
+                e,
+            )
+            width, height = None, None
+
         # Save new image
         filename = f"post_{post_id}_thumbnail.jpg"
 
@@ -412,14 +426,23 @@ def download_post_thumbnail_from_url(self, post_id):
         # Update using queryset to avoid triggering signal again
         Post.objects.filter(id=post.id).update(
             thumbnail=post.thumbnail.name,
+            width=width,
+            height=height,
         )
 
-        logger.info("Thumbnail downloaded for post %s", post_id)
+        logger.info(
+            "Thumbnail downloaded for post %s (dimensions: %sx%s)",
+            post_id,
+            width,
+            height,
+        )
         return {  # noqa: TRY300
             "success": True,
             "message": "Thumbnail downloaded",
             "old_hash": existing_image_hash,
             "new_hash": new_image_hash,
+            "width": width,
+            "height": height,
         }
 
     except (requests.RequestException, OSError) as e:
@@ -546,6 +569,18 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
             logger.info("Thumbnail unchanged for post media %s", post_media_id)
             return {"success": True, "message": "No changes detected"}
 
+        # Get image dimensions
+        try:
+            image = Image.open(BytesIO(new_image_content))
+            width, height = image.size
+        except (OSError, ValueError) as e:
+            logger.warning(
+                "Could not determine image dimensions for post media %s: %s",
+                post_media_id,
+                e,
+            )
+            width, height = None, None
+
         # Save new image
         filename = f"post_media_{post_media_id}_thumbnail.jpg"
 
@@ -559,14 +594,23 @@ def download_post_media_thumbnail_from_url(self, post_media_id):
         # Update using queryset to avoid triggering signal again
         PostMedia.objects.filter(id=post_media.id).update(
             thumbnail=post_media.thumbnail.name,
+            width=width,
+            height=height,
         )
 
-        logger.info("Thumbnail downloaded for post media %s", post_media_id)
+        logger.info(
+            "Thumbnail downloaded for post media %s (dimensions: %sx%s)",
+            post_media_id,
+            width,
+            height,
+        )
         return {  # noqa: TRY300
             "success": True,
             "message": "Thumbnail downloaded",
             "old_hash": existing_image_hash,
             "new_hash": new_image_hash,
+            "width": width,
+            "height": height,
         }
 
     except (requests.RequestException, OSError) as e:
