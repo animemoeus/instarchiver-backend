@@ -1,6 +1,5 @@
 import base64
 import logging
-from pathlib import Path
 
 from django.db import models
 from django.utils import timezone
@@ -80,14 +79,14 @@ class Post(models.Model):
         logger = logging.getLogger(__name__)
 
         # Check if thumbnail exists
-        if not self.thumbnail or not self.thumbnail.path:
+        if not self.thumbnail:
             msg = f"Thumbnail file does not exist for post {self.id}"
             raise ValueError(msg)
 
         try:
             # Encode image to base64
-            thumbnail_path = Path(self.thumbnail.path)
-            with thumbnail_path.open("rb") as image_file:
+            # Use .open() instead of .path for S3 compatibility
+            with self.thumbnail.open("rb") as image_file:
                 base64_image = base64.b64encode(image_file.read()).decode("utf-8")
 
             # Get OpenAI client and model
