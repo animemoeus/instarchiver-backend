@@ -117,9 +117,8 @@ class Post(models.Model):
 
             # Create chat completion with vision
             prompt_text = (
-                "Analyze this Instagram post image and provide a brief, "
-                "engaging insight about what's shown in the image. "
-                "Keep it concise (2-3 sentences)."
+                "Analyze this image and create detailed description about the image."
+                "The description should be detail as possible for text embedding data."
             )
             response = client.chat.completions.create(
                 model=model_name,
