@@ -51,3 +51,16 @@ class PostCursorPagination(CursorPagination):
     max_page_size = 100
     ordering = "-created_at"  # Most recent posts first
     cursor_query_param = "cursor"
+
+
+class PostAISearchCursorPagination(CursorPagination):
+    """
+    Cursor pagination for AI-powered post search.
+    Orders by similarity_score (descending) for most relevant posts first.
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    ordering = "-similarity_score"  # Most similar posts first
+    cursor_query_param = "cursor"
