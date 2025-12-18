@@ -13,8 +13,10 @@ from instagram.signals.post import post_post_save
 from instagram.tasks import download_post_media_from_url
 from instagram.tasks import download_post_media_thumbnail_from_url
 from instagram.tasks import download_post_thumbnail_from_url
+from instagram.tasks import generate_post_embedding
 from instagram.tasks import generate_post_thumbnail_insight
 from instagram.tasks import periodic_generate_post_blur_data_urls
+from instagram.tasks import periodic_generate_post_embeddings
 from instagram.tasks import periodic_generate_post_media_blur_data_urls
 from instagram.tasks import periodic_generate_post_thumbnail_insights
 from instagram.tasks import post_generate_blur_data_url
@@ -1389,3 +1391,334 @@ class TestPeriodicGeneratePostThumbnailInsights(TestCase):
         assert post_needs_insight.id in [
             call[0][0] for call in mock_task_delay.call_args_list
         ]
+
+
+class TestGeneratePostEmbedding(TestCase):
+    """Tests for the generate_post_embedding Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("core.utils.openai.generate_text_embedding")
+    def test_generate_post_embedding_success(self, mock_generate_embedding):
+        """Test successful embedding generation and saving."""
+
+        # Create a test post with caption
+        post = PostFactory(
+            caption="Test caption for embedding",
+            thumbnail_insight="Test insight",
+            embedding=None,
+        )
+
+        # Mock the embedding generation
+        test_embedding = [0.1] * 1536
+        mock_generate_embedding.return_value = (test_embedding, 100)
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["post_id"] == post.id
+        assert result.result["dimensions"] == 1536  # noqa: PLR2004
+
+        # Verify the embedding was saved to the model
+        post.refresh_from_db()
+        assert post.embedding is not None
+        assert len(post.embedding) == 1536  # noqa: PLR2004
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_generate_post_embedding_post_not_found(self):
+        """Test handling of non-existent post."""
+
+        # Execute the task with non-existent post ID
+        result = generate_post_embedding.delay("nonexistent_post_id")
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "not found" in result.result["error"].lower()
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_generate_post_embedding_already_exists(self):
+        """Test that task skips if embedding already exists."""
+
+        # Create a test post with existing embedding
+        existing_embedding = [0.5] * 1536
+        post = PostFactory(
+            caption="Test caption",
+            embedding=existing_embedding,
+        )
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify the task skipped generation
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert "already exists" in result.result["message"].lower()
+
+        # Verify embedding was not changed
+        post.refresh_from_db()
+        assert post.embedding is not None
+        assert len(post.embedding) == 1536  # noqa: PLR2004
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_generate_post_embedding_no_caption_or_insight(self):
+        """Test handling when post has no caption or thumbnail_insight."""
+
+        # Create a test post without caption or insight
+        post = PostFactory(caption="", thumbnail_insight="", embedding=None)
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify the task returns an error
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "No caption or thumbnail_insight" in result.result["error"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("core.utils.openai.generate_text_embedding")
+    def test_generate_post_embedding_with_caption_only(self, mock_generate_embedding):
+        """Test embedding generation with only caption."""
+
+        # Create a test post with only caption
+        post = PostFactory(
+            caption="Test caption only",
+            thumbnail_insight="",
+            embedding=None,
+        )
+
+        # Mock the embedding generation
+        test_embedding = [0.2] * 1536
+        mock_generate_embedding.return_value = (test_embedding, 100)
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify success
+        assert result.result["success"] is True
+
+        # Verify embedding was saved
+        post.refresh_from_db()
+        assert post.embedding is not None
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("core.utils.openai.generate_text_embedding")
+    def test_generate_post_embedding_with_insight_only(self, mock_generate_embedding):
+        """Test embedding generation with only thumbnail_insight."""
+
+        # Create a test post with only insight
+        post = PostFactory(
+            caption="",
+            thumbnail_insight="Test insight only",
+            embedding=None,
+        )
+
+        # Mock the embedding generation
+        test_embedding = [0.3] * 1536
+        mock_generate_embedding.return_value = (test_embedding, 100)
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify success
+        assert result.result["success"] is True
+
+        # Verify embedding was saved
+        post.refresh_from_db()
+        assert post.embedding is not None
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("core.utils.openai.generate_text_embedding")
+    def test_generate_post_embedding_network_error_retry(
+        self,
+        mock_generate_embedding,
+    ):
+        """Test retry logic on network errors."""
+
+        # Create a test post
+        post = PostFactory(caption="Test caption", embedding=None)
+
+        # Mock a network error
+        mock_generate_embedding.side_effect = Exception("Network timeout")
+
+        # Execute the task
+        result = generate_post_embedding.delay(post.id)
+
+        # Verify the task returns an error after retries
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is False
+        assert "error" in result.result
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("core.utils.openai.generate_text_embedding")
+    def test_generate_post_embedding_saves_to_model(self, mock_generate_embedding):
+        """Test that embedding is correctly saved to the Post model."""
+
+        # Create a test post
+        post = PostFactory(
+            caption="Test caption for saving",
+            thumbnail_insight="Test insight for saving",
+            embedding=None,
+        )
+
+        # Mock the embedding generation with specific values
+        test_embedding = [0.123] * 1536
+        mock_generate_embedding.return_value = (test_embedding, 100)
+
+        # Execute the task
+        generate_post_embedding.delay(post.id)
+
+        # Verify the embedding was saved
+        post.refresh_from_db()
+        assert post.embedding is not None
+        assert len(post.embedding) == 1536  # noqa: PLR2004
+        assert post.embedding[0] == 0.123  # noqa: PLR2004
+
+
+class TestPeriodicGeneratePostEmbeddings(TestCase):
+    """Tests for the periodic_generate_post_embeddings Celery task."""
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_embedding.delay")
+    def test_periodic_generate_post_embeddings_success(self, mock_task_delay):
+        """Test successful queuing of embedding generation tasks."""
+
+        # Create posts without embeddings
+        PostFactory(caption="Caption 1", embedding=None)
+        PostFactory(caption="Caption 2", embedding=None)
+        PostFactory(thumbnail_insight="Insight 1", caption="", embedding=None)
+
+        # Create a post with embedding (should be skipped)
+        PostFactory(caption="Caption 3", embedding=[0.1] * 1536)
+
+        # Mock the task delay to return a mock result
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify the task executed successfully
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 3  # noqa: PLR2004
+        assert result.result["queued"] == 3  # noqa: PLR2004
+        assert result.result["errors"] == 0
+
+        # Verify generate_post_embedding was called for each post
+        assert mock_task_delay.call_count == 3  # noqa: PLR2004
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_periodic_generate_post_embeddings_no_posts(self):
+        """Test when no posts need processing."""
+
+        # Create only posts with embeddings
+        PostFactory(caption="Caption 1", embedding=[0.1] * 1536)
+        PostFactory(caption="Caption 2", embedding=[0.2] * 1536)
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify the task returns success with no posts processed
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["queued"] == 0
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_embedding.delay")
+    def test_periodic_generate_post_embeddings_only_without_embeddings(
+        self,
+        mock_task_delay,
+    ):
+        """Test that only posts without embeddings are processed."""
+
+        # Create posts with and without embeddings
+        post_without_embedding = PostFactory(caption="Caption", embedding=None)
+        PostFactory(caption="Caption with embedding", embedding=[0.1] * 1536)
+
+        # Mock the task delay
+        mock_result = Mock()
+        mock_result.id = "task-id-123"
+        mock_task_delay.return_value = mock_result
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify only one post was queued
+        assert result.result["total"] == 1
+        assert result.result["queued"] == 1
+
+        # Verify the correct post was queued
+        mock_task_delay.assert_called_once_with(post_without_embedding.id)
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_embedding.delay")
+    def test_periodic_generate_post_embeddings_error_handling(
+        self,
+        mock_task_delay,
+    ):
+        """Test error handling when queuing tasks fails."""
+
+        # Create posts without embeddings
+        PostFactory(caption="Caption 1", embedding=None)
+        PostFactory(caption="Caption 2", embedding=None)
+
+        # Mock the task delay to raise an exception for the first post
+        mock_task_delay.side_effect = [
+            Exception("Task queue error"),
+            Mock(id="task-id-123"),
+        ]
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify the task completed with errors
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["total"] == 2  # noqa: PLR2004
+        assert result.result["queued"] == 1
+        assert result.result["errors"] == 1
+        assert result.result["error_details"] is not None
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    @patch("instagram.tasks.post.generate_post_embedding.delay")
+    def test_periodic_generate_post_embeddings_task_ids(self, mock_task_delay):
+        """Test that task IDs are returned correctly."""
+
+        # Create posts without embeddings
+        PostFactory(caption="Caption 1", embedding=None)
+        PostFactory(caption="Caption 2", embedding=None)
+
+        # Mock the task delay with different task IDs
+        mock_task_delay.side_effect = [
+            Mock(id="task-id-1"),
+            Mock(id="task-id-2"),
+        ]
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify task IDs are returned
+        assert result.result["success"] is True
+        assert len(result.result["task_ids"]) == 2  # noqa: PLR2004
+        assert "task-id-1" in result.result["task_ids"]
+        assert "task-id-2" in result.result["task_ids"]
+
+    @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
+    def test_periodic_generate_post_embeddings_skips_empty_caption_and_insight(self):
+        """Test that posts with empty caption and insight are skipped."""
+
+        # Create posts with empty caption and insight
+        PostFactory(caption="", thumbnail_insight="", embedding=None)
+        PostFactory(caption="", thumbnail_insight="", embedding=None)
+
+        # Execute the task
+        result = periodic_generate_post_embeddings.delay()
+
+        # Verify no posts were queued
+        assert isinstance(result, EagerResult)
+        assert result.result["success"] is True
+        assert result.result["queued"] == 0
