@@ -61,6 +61,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "height",
         "thumbnail_insight",
         "thumbnail_insight_token_usage",
+        "embedding_token_usage",
         "caption",
     ]
     fieldsets = (
@@ -76,6 +77,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                     "thumbnail",
                     ("thumbnail_insight", "thumbnail_insight_token_usage"),
                     "blur_data_url",
+                    ("embedding", "embedding_token_usage"),
                 ),
                 "classes": ["tab"],
             },

@@ -54,3 +54,47 @@ def check_connection() -> bool:
         return False
     else:
         return True
+
+
+def generate_text_embedding(text: str) -> tuple[list[float], int]:
+    """Generate embedding vector for the given text using OpenAI embeddings API.
+
+    Args:
+        text: Input text to generate embedding for
+
+    Returns:
+        Tuple of (embedding vector, token usage):
+        - embedding: List of floats representing the 1536-dimensional embedding vector
+        - token_usage: Total tokens used for this API call
+
+    Raises:
+        ImproperlyConfigured: If OpenAI settings are not configured
+        ValueError: If text is empty
+        Exception: If the API request fails
+    """
+    if not text or not text.strip():
+        msg = "Text cannot be empty for embedding generation"
+        raise ValueError(msg)
+
+    try:
+        client = get_openai_client()
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=text,
+        )
+
+        embedding = response.data[0].embedding
+        token_usage = response.usage.total_tokens
+
+        logger.info(
+            "Generated embedding with %d dimensions for text of length %d (tokens: %d)",
+            len(embedding),
+            len(text),
+            token_usage,
+        )
+
+        return embedding, token_usage  # noqa: TRY300
+
+    except Exception:
+        logger.exception("Failed to generate embedding for text")
+        raise

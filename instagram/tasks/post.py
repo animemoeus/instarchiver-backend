@@ -927,3 +927,199 @@ def download_post_media_from_url(self, post_media_id):
             post_media_id,
         )
         return {"success": False, "error": f"Permanent error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def generate_post_embedding(self, post_id: str) -> dict:  # noqa: PLR0911
+    """
+    Generate embedding vector for a post using OpenAI embeddings API.
+    This is a background task that calls the Post model's generate_embedding method.
+
+    Args:
+        post_id (str): ID of the post to generate embedding for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        post = Post.objects.get(id=post_id)
+    except Post.DoesNotExist:
+        logger.exception("Post with ID %s not found", post_id)
+        return {"success": False, "error": "Post not found"}
+
+    # Check if embedding already exists
+    if post.embedding is not None:
+        logger.info("Embedding already exists for post %s", post_id)
+        return {"success": True, "message": "Embedding already exists"}
+
+    # Check if post has caption or thumbnail_insight
+    if not post.caption and not post.thumbnail_insight:
+        logger.warning(
+            "Post %s has no caption or thumbnail_insight, cannot generate embedding",
+            post_id,
+        )
+        return {
+            "success": False,
+            "error": "No caption or thumbnail_insight available",
+        }
+
+    try:
+        # Generate the embedding
+        embedding = post.generate_embedding()
+
+        if embedding is None:
+            return {
+                "success": False,
+                "error": "Embedding generation returned None",
+                "post_id": post_id,
+            }
+
+        logger.info(
+            "Successfully generated embedding for post %s (dimensions: %d)",
+            post_id,
+            len(embedding),
+        )
+
+        return {
+            "success": True,
+            "message": "Successfully generated embedding",
+            "post_id": post_id,
+            "dimensions": len(embedding),
+        }
+
+    except ValueError as e:
+        # Non-retryable error (e.g., empty caption and insight)
+        logger.exception("ValueError generating embedding for post %s", post_id)
+        return {"success": False, "error": f"ValueError: {e!s}"}
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+            "openai",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating embedding for post %s (attempt %s/%s): %s",
+                post_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate embedding for post %s after %s attempts",
+            post_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "post_id": post_id,
+            "attempts": self.request.retries + 1,
+        }
+
+
+@shared_task
+def periodic_generate_post_embeddings():
+    """
+    Automatically generate embeddings for posts that have caption or thumbnail_insight
+    but don't have embeddings yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    try:
+        # Get all posts without embeddings that have caption or thumbnail_insight
+        from django.db.models import Q  # noqa: PLC0415
+
+        posts = Post.objects.filter(
+            embedding__isnull=True,
+        ).filter(
+            Q(caption__isnull=False, caption__gt="")
+            | Q(thumbnail_insight__isnull=False, thumbnail_insight__gt=""),
+        )
+        total_posts = posts.count()
+
+        if total_posts == 0:
+            logger.info("No posts found without embeddings")
+            return {
+                "success": True,
+                "message": "No posts to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting embedding generation for %d posts",
+            total_posts,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for post in posts:
+            try:
+                # Queue the embedding generation task
+                task_result = generate_post_embedding.delay(post.id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued embedding generation for post: %s (task: %s)",
+                    post.id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue embedding generation for post {post.id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing embedding generation for post %s",
+                    post.id,
+                )
+
+        logger.info(
+            "Embedding generation queuing completed: "
+            "%d queued, %d errors out of %d total posts",
+            queued_count,
+            error_count,
+            total_posts,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Embedding generation tasks queued",
+            "total": total_posts,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in periodic_generate_post_embeddings")
+        return {"success": False, "error": f"Critical error: {e!s}"}
