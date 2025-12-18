@@ -1,6 +1,7 @@
 from .others import ProcessInstagramDataView
 from .posts import PostDetailView
 from .posts import PostListView
+from .posts import PostSimilarView
 from .stories import StoryDetailView
 from .stories import StoryListView
 from .users import InstagramUserAddStoryCreditAPIView
@@ -15,6 +16,7 @@ __all__ = [
     "InstagramUserListCreateView",
     "PostDetailView",
     "PostListView",
+    "PostSimilarView",
     "ProcessInstagramDataView",
     "StoryDetailView",
     "StoryListView",
