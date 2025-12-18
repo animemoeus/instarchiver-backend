@@ -8,6 +8,7 @@ from rest_framework import filters
 from rest_framework.generics import ListAPIView
 from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
+from rest_framework.response import Response
 
 from core.utils.openai import generate_text_embedding
 from instagram.models import Post
@@ -92,7 +93,7 @@ class PostAISearchView(ListAPIView):
 
     def get_queryset(self):
         # Get search query from request
-        search_query = self.request.query_params.get("search", "").strip()
+        search_query = self.request.query_params.get("text", "").strip()
 
         if not search_query:
             # Return empty queryset if no search query provided
@@ -125,3 +126,12 @@ class PostAISearchView(ListAPIView):
             )
             .order_by("-similarity_score")
         )
+
+    def get(self, request, *args, **kwargs):
+        if not self.request.query_params.get("text"):
+            return Response(
+                {"error": "Text parameter is required"},
+                status=400,
+            )
+
+        return super().get(request, *args, **kwargs)
