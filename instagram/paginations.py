@@ -1,4 +1,5 @@
 from rest_framework.pagination import CursorPagination
+from rest_framework.pagination import PageNumberPagination
 
 
 class InstagramUserCursorPagination(CursorPagination):
@@ -64,3 +65,14 @@ class PostAISearchCursorPagination(CursorPagination):
     max_page_size = 100
     ordering = "-similarity_score"  # Most similar posts first
     cursor_query_param = "cursor"
+
+
+class PostSimilarPageNumberPagination(PageNumberPagination):
+    """
+    Page number pagination for similar posts.
+    Returns posts ordered by similarity score (descending).
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100
