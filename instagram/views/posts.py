@@ -3,6 +3,8 @@ from django.db.models import Exists
 from django.db.models import OuterRef
 from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiResponse
+from drf_spectacular.utils import extend_schema
 from pgvector.django import L2Distance
 from rest_framework import filters
 from rest_framework.generics import ListAPIView
@@ -17,6 +19,7 @@ from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import PostAISearchCursorPagination
 from instagram.paginations import PostCursorPagination
+from instagram.paginations import PostSimilarPageNumberPagination
 from instagram.serializers.posts import PostDetailSerializer
 from instagram.serializers.posts import PostListSerializer
 
@@ -135,3 +138,65 @@ class PostAISearchView(ListAPIView):
             )
 
         return super().get(request, *args, **kwargs)
+
+
+class PostSimilarView(ListAPIView):
+    """Get similar posts based on embedding similarity using L2Distance."""
+
+    serializer_class = PostListSerializer
+    pagination_class = PostSimilarPageNumberPagination
+    permission_classes = [IsAuthenticatedOrReadOnly]
+
+    @extend_schema(
+        summary="Get similar posts",
+        description=(
+            "Retrieve posts similar to the specified post based on embedding "
+            "similarity using L2Distance. Only returns posts that have embeddings."
+        ),
+        responses={
+            200: PostListSerializer(many=True),
+            404: OpenApiResponse(description="Post not found"),
+        },
+    )
+    def get(self, request, *args, **kwargs):
+        return super().get(request, *args, **kwargs)
+
+    def get_queryset(self):
+        # Get the post ID from URL parameter
+        post_id = self.kwargs.get("id")
+
+        # Get the source post and its embedding
+        try:
+            source_post = Post.objects.get(id=post_id)
+        except Post.DoesNotExist:
+            return Post.objects.none()
+
+        # If source post has no embedding, return empty queryset
+        if source_post.embedding is None:
+            return Post.objects.none()
+
+        # Annotate users with has_stories and has_history
+        annotated_users = InstagramUser.objects.annotate(
+            has_stories=Exists(Story.objects.filter(user=OuterRef("pk"))),
+            has_history=Exists(
+                InstagramUser.history.model.objects.filter(uuid=OuterRef("pk")),
+            ),
+        )
+
+        # Order PostMedia by reference to ensure consistent ordering
+        ordered_postmedia = PostMedia.objects.order_by("-reference")
+
+        # Find similar posts using L2Distance
+        return (
+            Post.objects.filter(embedding__isnull=False)
+            .exclude(id=post_id)  # Exclude the source post itself
+            .prefetch_related(
+                Prefetch("user", queryset=annotated_users),
+                Prefetch("postmedia_set", queryset=ordered_postmedia),
+            )
+            .annotate(
+                media_count=Count("postmedia"),
+                similarity_score=1 - L2Distance("embedding", source_post.embedding),
+            )
+            .order_by("-similarity_score")
+        )

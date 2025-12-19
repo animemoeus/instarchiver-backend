@@ -1,6 +1,7 @@
 from instagram.views.posts import PostAISearchView
 from instagram.views.posts import PostDetailView
 from instagram.views.posts import PostListView
+from instagram.views.posts import PostSimilarView
 
 from .others import ProcessInstagramDataView
 from .stories import StoryDetailView
@@ -18,6 +19,7 @@ __all__ = [
     "PostAISearchView",
     "PostDetailView",
     "PostListView",
+    "PostSimilarView",
     "ProcessInstagramDataView",
     "StoryDetailView",
     "StoryListView",

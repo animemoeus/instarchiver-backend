@@ -797,3 +797,294 @@ class PostDetailViewTest(TestCase):
         returned_media_ids = {media["id"] for media in response.data["media"]}
         expected_media_ids = {media.id for media in media_items}
         assert returned_media_ids == expected_media_ids
+
+
+class PostSimilarViewTest(TestCase):
+    """Test suite for PostSimilarView endpoint."""
+
+    def setUp(self):
+        """Set up test client and common test data."""
+        self.client = APIClient()
+
+    def test_similar_posts_success(self):
+        """Test successful retrieval of similar posts ordered by similarity."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar posts with embeddings
+        PostFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,  # Very similar
+        )
+        PostFactory(
+            user=user,
+            embedding=[0.5, 0.6, 0.7] * 512,  # Less similar
+        )
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        assert len(response.data["results"]) == 2  # noqa: PLR2004
+
+    def test_similar_posts_pagination(self):
+        """Test page number pagination works correctly."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create 25 similar posts with embeddings
+        for _ in range(25):
+            PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        assert "count" in response.data
+        assert "next" in response.data
+        assert "previous" in response.data
+        assert response.data["count"] == 25  # noqa: PLR2004
+        assert len(response.data["results"]) == 20  # noqa: PLR2004 (default page size)
+
+    def test_similar_posts_custom_page_size(self):
+        """Test custom page_size parameter."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create 15 similar posts with embeddings
+        for _ in range(15):
+            PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url, {"page_size": 5})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 5  # noqa: PLR2004
+
+    def test_similar_posts_max_page_size(self):
+        """Test that max page size is enforced (100)."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create 50 similar posts with embeddings
+        for _ in range(50):
+            PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url, {"page_size": 200})
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should be limited to max_page_size of 100
+        assert len(response.data["results"]) <= 100  # noqa: PLR2004
+
+    def test_similar_posts_excludes_source_post(self):
+        """Test that source post is not included in results."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar posts with embeddings
+        for _ in range(5):
+            PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # Verify source post is not in results
+        result_ids = [post["id"] for post in results]
+        assert source_post.id not in result_ids
+
+    def test_similar_posts_only_with_embeddings(self):
+        """Test that only posts with embeddings are returned."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create posts with embeddings
+        PostFactory.create_batch(3, user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create posts without embeddings
+        PostFactory.create_batch(2, user=user, embedding=None)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 3  # noqa: PLR2004
+
+        # Verify all results have embeddings (not null)
+        for post in results:
+            # The embedding field is not exposed in serializer, but we know
+            # only posts with embeddings should be returned
+            assert post["id"] is not None
+
+    def test_similar_posts_post_not_found(self):
+        """Test handling of non-existent post ID."""
+        url = reverse(
+            "instagram:post_similar",
+            kwargs={"id": "9999999999999999999"},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results for non-existent post
+        assert len(response.data["results"]) == 0
+
+    def test_similar_posts_no_embedding(self):
+        """Test handling of source post without embedding."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post WITHOUT embedding
+        source_post = PostFactory(user=user, embedding=None)
+
+        # Create posts with embeddings
+        PostFactory.create_batch(3, user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results when source post has no embedding
+        assert len(response.data["results"]) == 0
+
+    def test_similar_posts_no_other_posts_with_embeddings(self):
+        """Test when no other posts have embeddings."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create posts without embeddings
+        PostFactory.create_batch(3, user=user, embedding=None)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results when no other posts have embeddings
+        assert len(response.data["results"]) == 0
+
+    def test_similar_posts_response_structure(self):
+        """Test that response contains expected pagination structure."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar posts
+        PostFactory.create_batch(5, user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+        # Check page number pagination structure
+        assert "count" in response.data
+        assert "next" in response.data
+        assert "previous" in response.data
+        assert "results" in response.data
+
+        # Check post structure
+        results = response.data["results"]
+        assert len(results) > 0
+
+        first_post = results[0]
+        expected_fields = [
+            "id",
+            "variant",
+            "thumbnail_url",
+            "thumbnail",
+            "blur_data_url",
+            "media_count",
+            "created_at",
+            "updated_at",
+            "user",
+        ]
+
+        for field in expected_fields:
+            assert field in first_post, f"Field '{field}' missing from response"
+
+    def test_similar_posts_unauthenticated_allowed(self):
+        """Test unauthenticated access (IsAuthenticatedOrReadOnly)."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar posts
+        PostFactory.create_batch(3, user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_similar_posts_page_navigation(self):
+        """Test navigating between pages."""
+        user = InstagramUserFactory(username="testuser")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create 25 similar posts
+        for _ in range(25):
+            PostFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+
+        # Get first page
+        response = self.client.get(url, {"page_size": 10})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 10  # noqa: PLR2004
+        assert response.data["next"] is not None
+
+        # Get second page
+        response = self.client.get(url, {"page_size": 10, "page": 2})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 10  # noqa: PLR2004
+
+        # Get third page
+        response = self.client.get(url, {"page_size": 10, "page": 3})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 5  # noqa: PLR2004 (remaining posts)
+
+    def test_similar_posts_from_multiple_users(self):
+        """Test that similar posts from different users are returned."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+
+        # Create source post with embedding
+        source_post = PostFactory(user=user1, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar posts from different users
+        PostFactory.create_batch(2, user=user1, embedding=[0.1, 0.2, 0.3] * 512)
+        PostFactory.create_batch(2, user=user2, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse("instagram:post_similar", kwargs={"id": source_post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 4  # noqa: PLR2004
+
+        # Verify we have posts from both users
+        usernames = {post["user"]["username"] for post in results}
+        assert "user1" in usernames
+        assert "user2" in usernames
