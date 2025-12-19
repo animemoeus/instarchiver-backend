@@ -1,4 +1,4 @@
-FROM docker.io/amazon/aws-cli:2.32.19
+FROM docker.io/amazon/aws-cli:2.32.20
 
 # Clear entrypoint to allow custom commands
 ENTRYPOINT []
