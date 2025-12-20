@@ -1463,11 +1463,11 @@ class TestGeneratePostEmbedding(TestCase):
         assert len(post.embedding) == 1536  # noqa: PLR2004
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
-    def test_generate_post_embedding_no_caption_or_insight(self):
-        """Test handling when post has no caption or thumbnail_insight."""
+    def test_generate_post_embedding_no_thumbnail_insight(self):
+        """Test handling when post has no thumbnail_insight."""
 
-        # Create a test post without caption or insight
-        post = PostFactory(caption="", thumbnail_insight="", embedding=None)
+        # Create a test post without thumbnail_insight
+        post = PostFactory(caption="Test caption", thumbnail_insight="", embedding=None)
 
         # Execute the task
         result = generate_post_embedding.delay(post.id)
@@ -1475,17 +1475,20 @@ class TestGeneratePostEmbedding(TestCase):
         # Verify the task returns an error
         assert isinstance(result, EagerResult)
         assert result.result["success"] is False
-        assert "No caption or thumbnail_insight" in result.result["error"]
+        assert "No thumbnail_insight" in result.result["error"]
 
     @override_settings(CELERY_TASK_ALWAYS_EAGER=True)
     @patch("core.utils.openai.generate_text_embedding")
-    def test_generate_post_embedding_with_caption_only(self, mock_generate_embedding):
-        """Test embedding generation with only caption."""
+    def test_generate_post_embedding_with_caption_and_insight(
+        self,
+        mock_generate_embedding,
+    ):
+        """Test embedding generation with both caption and thumbnail_insight."""
 
-        # Create a test post with only caption
+        # Create a test post with both caption and insight
         post = PostFactory(
-            caption="Test caption only",
-            thumbnail_insight="",
+            caption="Test caption",
+            thumbnail_insight="Test insight",
             embedding=None,
         )
 
@@ -1538,7 +1541,11 @@ class TestGeneratePostEmbedding(TestCase):
         """Test retry logic on network errors."""
 
         # Create a test post
-        post = PostFactory(caption="Test caption", embedding=None)
+        post = PostFactory(
+            caption="Test caption",
+            thumbnail_insight="Test insight",
+            embedding=None,
+        )
 
         # Mock a network error
         mock_generate_embedding.side_effect = Exception("Network timeout")
@@ -1585,13 +1592,17 @@ class TestPeriodicGeneratePostEmbeddings(TestCase):
     def test_periodic_generate_post_embeddings_success(self, mock_task_delay):
         """Test successful queuing of embedding generation tasks."""
 
-        # Create posts without embeddings
-        PostFactory(caption="Caption 1", embedding=None)
-        PostFactory(caption="Caption 2", embedding=None)
-        PostFactory(thumbnail_insight="Insight 1", caption="", embedding=None)
+        # Create posts without embeddings but with thumbnail_insight
+        PostFactory(caption="Caption 1", thumbnail_insight="Insight 1", embedding=None)
+        PostFactory(caption="Caption 2", thumbnail_insight="Insight 2", embedding=None)
+        PostFactory(thumbnail_insight="Insight 3", caption="", embedding=None)
 
         # Create a post with embedding (should be skipped)
-        PostFactory(caption="Caption 3", embedding=[0.1] * 1536)
+        PostFactory(
+            caption="Caption 3",
+            thumbnail_insight="Insight 4",
+            embedding=[0.1] * 1536,
+        )
 
         # Mock the task delay to return a mock result
         mock_result = Mock()
@@ -1636,8 +1647,16 @@ class TestPeriodicGeneratePostEmbeddings(TestCase):
         """Test that only posts without embeddings are processed."""
 
         # Create posts with and without embeddings
-        post_without_embedding = PostFactory(caption="Caption", embedding=None)
-        PostFactory(caption="Caption with embedding", embedding=[0.1] * 1536)
+        post_without_embedding = PostFactory(
+            caption="Caption",
+            thumbnail_insight="Insight",
+            embedding=None,
+        )
+        PostFactory(
+            caption="Caption with embedding",
+            thumbnail_insight="Insight",
+            embedding=[0.1] * 1536,
+        )
 
         # Mock the task delay
         mock_result = Mock()
@@ -1662,9 +1681,9 @@ class TestPeriodicGeneratePostEmbeddings(TestCase):
     ):
         """Test error handling when queuing tasks fails."""
 
-        # Create posts without embeddings
-        PostFactory(caption="Caption 1", embedding=None)
-        PostFactory(caption="Caption 2", embedding=None)
+        # Create posts without embeddings but with thumbnail_insight
+        PostFactory(caption="Caption 1", thumbnail_insight="Insight 1", embedding=None)
+        PostFactory(caption="Caption 2", thumbnail_insight="Insight 2", embedding=None)
 
         # Mock the task delay to raise an exception for the first post
         mock_task_delay.side_effect = [
@@ -1688,9 +1707,9 @@ class TestPeriodicGeneratePostEmbeddings(TestCase):
     def test_periodic_generate_post_embeddings_task_ids(self, mock_task_delay):
         """Test that task IDs are returned correctly."""
 
-        # Create posts without embeddings
-        PostFactory(caption="Caption 1", embedding=None)
-        PostFactory(caption="Caption 2", embedding=None)
+        # Create posts without embeddings but with thumbnail_insight
+        PostFactory(caption="Caption 1", thumbnail_insight="Insight 1", embedding=None)
+        PostFactory(caption="Caption 2", thumbnail_insight="Insight 2", embedding=None)
 
         # Mock the task delay with different task IDs
         mock_task_delay.side_effect = [
