@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.db.models import Count
 from django.db.models import Exists
 from django.db.models import OuterRef
@@ -85,6 +86,26 @@ class PostDetailView(RetrieveAPIView):
             Prefetch("user", queryset=annotated_users),
             Prefetch("postmedia_set", queryset=ordered_postmedia),
         )
+
+    def retrieve(self, request, *args, **kwargs):
+        """Retrieve post detail with 30-second caching."""
+        post_id = kwargs.get(self.lookup_field)
+        cache_key = f"post_detail_{post_id}"
+
+        # Try to get cached response
+        cached_response = cache.get(cache_key)
+        if cached_response is not None:
+            return Response(cached_response)
+
+        # Get the post instance
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        data = serializer.data
+
+        # Cache the response for 30 seconds
+        cache.set(cache_key, data, 30)
+
+        return Response(data)
 
 
 class PostAISearchView(ListAPIView):
