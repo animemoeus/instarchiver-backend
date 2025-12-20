@@ -1,3 +1,4 @@
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from rest_framework import status
@@ -797,6 +798,148 @@ class PostDetailViewTest(TestCase):
         returned_media_ids = {media["id"] for media in response.data["media"]}
         expected_media_ids = {media.id for media in media_items}
         assert returned_media_ids == expected_media_ids
+
+    def test_cache_hit_on_second_request(self):
+        """Test that second request to same post uses cache."""
+
+        # Clear cache before test
+        cache.clear()
+
+        user = InstagramUserFactory(username="cacheuser")
+        post = PostFactory(user=user)
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+
+        # First request - should cache the response
+        response1 = self.client.get(url)
+        assert response1.status_code == status.HTTP_200_OK
+
+        # Verify cache key exists
+        cache_key = f"post_detail_{post.id}"
+        cached_data = cache.get(cache_key)
+        assert cached_data is not None
+
+        # Second request - should use cache
+        response2 = self.client.get(url)
+        assert response2.status_code == status.HTTP_200_OK
+
+        # Both responses should be identical
+        assert response1.data == response2.data
+
+    def test_cache_miss_on_first_request(self):
+        """Test that first request doesn't find cache and creates it."""
+
+        # Clear cache before test
+        cache.clear()
+
+        user = InstagramUserFactory(username="cachemissuser")
+        post = PostFactory(user=user)
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+
+        # Verify cache doesn't exist before request
+        cache_key = f"post_detail_{post.id}"
+        assert cache.get(cache_key) is None
+
+        # Make request
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        # Verify cache now exists
+        cached_data = cache.get(cache_key)
+        assert cached_data is not None
+        assert cached_data["id"] == post.id
+
+    def test_cache_expires_after_ttl(self):
+        """Test that cache expires after 30 seconds."""
+
+        # Clear cache before test
+        cache.clear()
+
+        user = InstagramUserFactory(username="cachettluser")
+        post = PostFactory(user=user)
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        cache_key = f"post_detail_{post.id}"
+
+        # First request - creates cache
+        response1 = self.client.get(url)
+        assert response1.status_code == status.HTTP_200_OK
+
+        # Verify cache exists
+        assert cache.get(cache_key) is not None
+
+        # Manually delete cache to simulate expiration
+        cache.delete(cache_key)
+
+        # Verify cache is gone
+        assert cache.get(cache_key) is None
+
+        # Second request should create new cache
+        response2 = self.client.get(url)
+        assert response2.status_code == status.HTTP_200_OK
+
+        # Cache should exist again
+        assert cache.get(cache_key) is not None
+
+    def test_different_posts_have_different_cache_keys(self):
+        """Test that different posts use different cache keys."""
+
+        # Clear cache before test
+        cache.clear()
+
+        user = InstagramUserFactory(username="multipostuser")
+        post1 = PostFactory(user=user)
+        post2 = PostFactory(user=user)
+
+        url1 = reverse("instagram:post_detail", kwargs={"id": post1.id})
+        url2 = reverse("instagram:post_detail", kwargs={"id": post2.id})
+
+        # Request both posts
+        response1 = self.client.get(url1)
+        response2 = self.client.get(url2)
+
+        assert response1.status_code == status.HTTP_200_OK
+        assert response2.status_code == status.HTTP_200_OK
+
+        # Verify both have separate cache keys
+        cache_key1 = f"post_detail_{post1.id}"
+        cache_key2 = f"post_detail_{post2.id}"
+
+        cached1 = cache.get(cache_key1)
+        cached2 = cache.get(cache_key2)
+
+        assert cached1 is not None
+        assert cached2 is not None
+        assert cached1["id"] == post1.id
+        assert cached2["id"] == post2.id
+        assert cached1["id"] != cached2["id"]
+
+    def test_cache_contains_correct_data(self):
+        """Test that cached data matches the actual response."""
+
+        # Clear cache before test
+        cache.clear()
+
+        user = InstagramUserFactory(username="cachedatauser")
+        post = PostFactory(user=user, caption="Test caption for caching")
+        PostMediaFactory.create_batch(2, post=post)
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        cache_key = f"post_detail_{post.id}"
+
+        # Make request to populate cache
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+
+        # Get cached data
+        cached_data = cache.get(cache_key)
+
+        # Verify cached data matches response
+        assert cached_data["id"] == post.id
+        assert cached_data["caption"] == "Test caption for caching"
+        assert cached_data["user"]["username"] == "cachedatauser"
+        assert len(cached_data["media"]) == 2  # noqa: PLR2004
 
 
 class PostSimilarViewTest(TestCase):
