@@ -169,25 +169,28 @@ class Post(models.Model):
         a text representation, then generates a 1536-dimensional embedding vector
         using OpenAI's text-embedding-3-small model.
 
+        Note: Embedding generation requires thumbnail_insight to be available,
+        as it provides AI-generated visual context essential for accurate embeddings.
+
         Returns:
             list[float]: Generated embedding vector, or None if generation fails
 
         Raises:
-            ValueError: If both caption and thumbnail_insight are empty
+            ValueError: If thumbnail_insight is empty
             ImproperlyConfigured: If OpenAI settings are not configured
         """
         logger = logging.getLogger(__name__)
+
+        # Check if thumbnail_insight is available
+        if not self.thumbnail_insight:
+            msg = f"Thumbnail insight is not available for post {self.id}"
+            raise ValueError(msg)
 
         # Combine caption and thumbnail_insight for embedding input
         text_parts = []
         if self.caption:
             text_parts.append(self.caption)
-        if self.thumbnail_insight:
-            text_parts.append(self.thumbnail_insight)
-
-        if not text_parts:
-            msg = f"Both caption and thumbnail_insight are empty for post {self.id}"
-            raise ValueError(msg)
+        text_parts.append(self.thumbnail_insight)
 
         embedding_text = " ".join(text_parts)
 

@@ -952,15 +952,15 @@ def generate_post_embedding(self, post_id: str) -> dict:  # noqa: PLR0911
         logger.info("Embedding already exists for post %s", post_id)
         return {"success": True, "message": "Embedding already exists"}
 
-    # Check if post has caption or thumbnail_insight
-    if not post.caption and not post.thumbnail_insight:
+    # Check if post has thumbnail_insight (required for embedding)
+    if not post.thumbnail_insight:
         logger.warning(
-            "Post %s has no caption or thumbnail_insight, cannot generate embedding",
+            "Post %s has no thumbnail_insight, cannot generate embedding",
             post_id,
         )
         return {
             "success": False,
-            "error": "No caption or thumbnail_insight available",
+            "error": "No thumbnail_insight available",
         }
 
     try:
@@ -1042,7 +1042,7 @@ def generate_post_embedding(self, post_id: str) -> dict:  # noqa: PLR0911
 @shared_task
 def periodic_generate_post_embeddings():
     """
-    Automatically generate embeddings for posts that have caption or thumbnail_insight
+    Automatically generate embeddings for posts that have thumbnail_insight
     but don't have embeddings yet.
     This task is designed to be run periodically via Celery Beat.
 
@@ -1050,14 +1050,11 @@ def periodic_generate_post_embeddings():
         dict: Summary of operations performed
     """
     try:
-        # Get all posts without embeddings that have caption or thumbnail_insight
-        from django.db.models import Q  # noqa: PLC0415
-
+        # Get all posts without embeddings that have thumbnail_insight
         posts = Post.objects.filter(
             embedding__isnull=True,
-        ).filter(
-            Q(caption__isnull=False, caption__gt="")
-            | Q(thumbnail_insight__isnull=False, thumbnail_insight__gt=""),
+            thumbnail_insight__isnull=False,
+            thumbnail_insight__gt="",
         )
         total_posts = posts.count()
 
