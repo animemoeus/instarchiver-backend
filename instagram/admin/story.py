@@ -30,7 +30,6 @@ class StoryAdmin(ModelAdmin):
         "blur_data_url",
         "thumbnail_insight",
         "thumbnail_insight_token_usage",
-        "embedding",
         "embedding_token_usage",
     ]
     fieldsets = (

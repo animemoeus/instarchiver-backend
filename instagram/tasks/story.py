@@ -361,3 +361,197 @@ def periodic_generate_story_thumbnail_insights():
     except Exception as e:
         logger.exception("Critical error in periodic_generate_story_thumbnail_insights")
         return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def generate_story_embedding(self, story_id: str) -> dict:  # noqa: PLR0911
+    """
+    Generate embedding vector for a story using OpenAI embeddings API.
+    This is a background task that calls the Story model's generate_embedding method.
+
+    Args:
+        story_id (str): ID of the story to generate embedding for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        story = Story.objects.get(story_id=story_id)
+    except Story.DoesNotExist:
+        logger.exception("Story with ID %s not found", story_id)
+        return {"success": False, "error": "Story not found"}
+
+    # Check if embedding already exists
+    if story.embedding is not None:
+        logger.info("Embedding already exists for story %s", story_id)
+        return {"success": True, "message": "Embedding already exists"}
+
+    # Check if story has thumbnail_insight (required for embedding)
+    if not story.thumbnail_insight:
+        logger.warning(
+            "Story %s has no thumbnail_insight, cannot generate embedding",
+            story_id,
+        )
+        return {
+            "success": False,
+            "error": "No thumbnail_insight available",
+        }
+
+    try:
+        # Generate the embedding
+        embedding = story.generate_embedding()
+
+        if embedding is None:
+            return {
+                "success": False,
+                "error": "Embedding generation returned None",
+                "story_id": story_id,
+            }
+
+        logger.info(
+            "Successfully generated embedding for story %s (dimensions: %d)",
+            story_id,
+            len(embedding),
+        )
+
+        return {
+            "success": True,
+            "message": "Successfully generated embedding",
+            "story_id": story_id,
+            "dimensions": len(embedding),
+        }
+
+    except ValueError as e:
+        # Non-retryable error (e.g., empty thumbnail_insight)
+        logger.exception("ValueError generating embedding for story %s", story_id)
+        return {"success": False, "error": f"ValueError: {e!s}"}
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+            "openai",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating embedding for story %s (attempt %s/%s): %s",
+                story_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate embedding for story %s after %s attempts",
+            story_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "story_id": story_id,
+            "attempts": self.request.retries + 1,
+        }
+
+
+@shared_task
+def periodic_generate_story_embeddings():
+    """
+    Automatically generate embeddings for stories that have thumbnail_insight
+    but don't have embeddings yet.
+    This task is designed to be run periodically via Celery Beat.
+
+    Returns:
+        dict: Summary of operations performed
+    """
+    try:
+        # Get all stories without embeddings that have thumbnail_insight
+        stories = Story.objects.filter(
+            embedding__isnull=True,
+            thumbnail_insight__isnull=False,
+            thumbnail_insight__gt="",
+        )
+        total_stories = stories.count()
+
+        if total_stories == 0:
+            logger.info("No stories found without embeddings")
+            return {
+                "success": True,
+                "message": "No stories to process",
+                "queued": 0,
+                "errors": 0,
+            }
+
+        logger.info(
+            "Starting embedding generation for %d stories",
+            total_stories,
+        )
+
+        queued_count = 0
+        error_count = 0
+        errors = []
+        task_ids = []
+
+        for story in stories:
+            try:
+                # Queue the embedding generation task
+                task_result = generate_story_embedding.delay(story.story_id)
+                task_ids.append(task_result.id)
+                queued_count += 1
+                logger.info(
+                    "Successfully queued embedding generation for story: %s (task: %s)",
+                    story.story_id,
+                    task_result.id,
+                )
+            except Exception as e:
+                error_count += 1
+                error_msg = (
+                    f"Failed to queue embedding generation for "
+                    f"story {story.story_id}: {e!s}"
+                )
+                errors.append(error_msg)
+                logger.exception(
+                    "Error queuing embedding generation for story %s",
+                    story.story_id,
+                )
+
+        logger.info(
+            "Embedding generation queuing completed: "
+            "%d queued, %d errors out of %d total stories",
+            queued_count,
+            error_count,
+            total_stories,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Embedding generation tasks queued",
+            "total": total_stories,
+            "queued": queued_count,
+            "errors": error_count,
+            "error_details": errors if errors else None,
+            "task_ids": task_ids,
+        }
+
+    except Exception as e:
+        logger.exception("Critical error in periodic_generate_story_embeddings")
+        return {"success": False, "error": f"Critical error: {e!s}"}

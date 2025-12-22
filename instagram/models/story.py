@@ -62,6 +62,15 @@ class Story(models.Model):
 
         generate_story_thumbnail_insight.delay(self.story_id)
 
+    def generate_embedding_task(self):
+        """
+        Generates embedding vector for the story using a Celery task.
+        This method queues the embedding generation as a background task.
+        """
+        from instagram.tasks import generate_story_embedding  # noqa: PLC0415
+
+        generate_story_embedding.delay(self.story_id)
+
     def generate_thumbnail_insight(self):
         """
         Generate AI-powered insight for the story thumbnail using OpenAI Vision API.
@@ -159,6 +168,65 @@ class Story(models.Model):
             return ""
         else:
             logger.info("Generated thumbnail insight for story %s", self.story_id)
+
+    def generate_embedding(self):
+        """
+        Generate embedding vector for the story using OpenAI embeddings API.
+
+        This method uses the story's thumbnail_insight to create a text representation,
+        then generates a 1536-dimensional embedding vector using OpenAI's
+        text-embedding-3-small model.
+
+        Note: Embedding generation requires thumbnail_insight to be available,
+        as it provides AI-generated visual context essential for accurate embeddings.
+
+        Returns:
+            list[float]: Generated embedding vector, or None if generation fails
+
+        Raises:
+            ValueError: If thumbnail_insight is empty
+            ImproperlyConfigured: If OpenAI settings are not configured
+        """
+        logger = logging.getLogger(__name__)
+
+        # Check if thumbnail_insight is available
+        if not self.thumbnail_insight:
+            msg = f"Thumbnail insight is not available for story {self.story_id}"
+            raise ValueError(msg)
+
+        # Use thumbnail_insight as the embedding input
+        embedding_text = self.thumbnail_insight
+
+        try:
+            from core.utils.openai import generate_text_embedding  # noqa: PLC0415
+
+            # Generate embedding
+            embedding, token_usage = generate_text_embedding(embedding_text)
+
+            # Save to model
+            self.embedding = embedding
+            self.embedding_token_usage = token_usage
+            self.save(update_fields=["embedding", "embedding_token_usage"])
+
+            logger.info(
+                "Generated embedding for story %s (text length: %d, dimensions: %d, tokens: %d)",  # noqa: E501
+                self.story_id,
+                len(embedding_text),
+                len(embedding),
+                token_usage,
+            )
+
+            return embedding  # noqa: TRY300
+
+        except ValueError:
+            logger.exception(
+                "ValueError generating embedding for story %s",
+                self.story_id,
+            )
+            raise
+        except Exception:
+            logger.exception("Failed to generate embedding for story %s", self.story_id)
+            return None
 
 
 class UserUpdateStoryLog(models.Model):
