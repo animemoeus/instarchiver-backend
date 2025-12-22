@@ -5,4 +5,4 @@ set -o pipefail
 set -o nounset
 
 
-exec celery -A config.celery_app worker -l INFO --autoscale=8,3
+exec celery -A config.celery_app worker -l INFO
