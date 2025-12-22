@@ -595,3 +595,363 @@ class StoryDetailViewTest(TestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["user"]["uuid"] == str(user.uuid)
+
+
+class StorySimilarViewTest(TestCase):
+    """Test suite for StorySimilarView endpoint."""
+
+    def setUp(self):
+        """Set up test client and common test data."""
+        self.client = APIClient()
+
+    def test_similar_stories_success(self):
+        """Test successful retrieval of similar stories ordered by similarity."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create similar stories with embeddings
+        StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,  # Very similar
+        )
+        StoryFactory(
+            user=user,
+            embedding=[0.5, 0.6, 0.7] * 512,  # Less similar
+        )
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "results" in response.data
+        assert len(response.data["results"]) == 2  # noqa: PLR2004
+
+    def test_similar_stories_pagination(self):
+        """Test pagination works correctly for similar stories."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create 25 similar stories with embeddings
+        for _ in range(25):
+            StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 20  # noqa: PLR2004, Default page size
+        assert response.data["next"] is not None
+        assert "page=2" in response.data["next"]
+
+    def test_similar_stories_custom_page_size(self):
+        """Test custom page size parameter for similar stories."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create 15 similar stories with embeddings
+        for _ in range(15):
+            StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url, {"page_size": 10})
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 10  # noqa: PLR2004
+
+    def test_similar_stories_max_page_size(self):
+        """Test that max page size (100) is enforced."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create 50 similar stories with embeddings
+        for _ in range(50):
+            StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url, {"page_size": 200})  # Request more than max
+
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 50  # noqa: PLR2004, Not exceeding available
+
+    def test_similar_stories_excludes_source_story(self):
+        """Test that the source story is excluded from results."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create similar stories with embeddings
+        StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # Verify source story is not in results
+        story_ids = [story["story_id"] for story in results]
+        assert source_story.story_id not in story_ids
+
+    def test_similar_stories_only_with_embeddings(self):
+        """Test that only stories with embeddings are returned."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(
+            user=user,
+            embedding=[0.1, 0.2, 0.3] * 512,
+        )
+
+        # Create stories with embeddings
+        story_with_embedding = StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create stories without embeddings
+        StoryFactory(user=user, embedding=None)
+        StoryFactory(user=user, embedding=None)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+
+        # Only 1 story with embedding should be returned
+        assert len(results) == 1
+        assert results[0]["story_id"] == story_with_embedding.story_id
+
+    def test_similar_stories_story_not_found(self):
+        """Test error response when source story doesn't exist."""
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": "9999999999999999999"},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results
+        assert len(response.data["results"]) == 0
+
+    def test_similar_stories_no_embedding(self):
+        """Test response when source story has no embedding."""
+        user = InstagramUserFactory()
+
+        # Create source story without embedding
+        source_story = StoryFactory(user=user, embedding=None)
+
+        # Create other stories with embeddings
+        StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+        StoryFactory(user=user, embedding=[0.5, 0.6, 0.7] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results
+        assert len(response.data["results"]) == 0
+
+    def test_similar_stories_no_other_stories_with_embeddings(self):
+        """Test response when no other stories have embeddings."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create other stories without embeddings
+        StoryFactory(user=user, embedding=None)
+        StoryFactory(user=user, embedding=None)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        # Should return empty results
+        assert len(response.data["results"]) == 0
+
+    def test_similar_stories_response_structure(self):
+        """Test that response structure matches expected format."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar stories
+        StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "count" in response.data
+        assert "next" in response.data
+        assert "previous" in response.data
+        assert "results" in response.data
+
+        # Verify story fields
+        results = response.data["results"]
+        assert len(results) > 0
+
+        first_story = results[0]
+        expected_fields = [
+            "story_id",
+            "user",
+            "thumbnail",
+            "blur_data_url",
+            "media",
+            "created_at",
+            "story_created_at",
+        ]
+
+        for field in expected_fields:
+            assert field in first_story, f"Field '{field}' missing from response"
+
+        # Verify user fields
+        user_data = first_story["user"]
+        expected_user_fields = [
+            "uuid",
+            "instagram_id",
+            "username",
+            "full_name",
+            "profile_picture",
+            "biography",
+            "is_private",
+            "is_verified",
+            "media_count",
+            "follower_count",
+            "following_count",
+            "allow_auto_update_stories",
+            "allow_auto_update_profile",
+            "created_at",
+            "updated_at",
+            "api_updated_at",
+            "has_stories",
+            "has_history",
+        ]
+
+        for field in expected_user_fields:
+            assert field in user_data, f"Field '{field}' missing from user data"
+
+    def test_similar_stories_unauthenticated_allowed(self):
+        """Test unauthenticated access (IsAuthenticatedOrReadOnly)."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar stories
+        StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_similar_stories_page_navigation(self):
+        """Test page navigation with page number pagination."""
+        user = InstagramUserFactory()
+
+        # Create source story with embedding
+        source_story = StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create 25 similar stories
+        for _ in range(25):
+            StoryFactory(user=user, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+
+        # Get first page
+        response = self.client.get(url)
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 20  # noqa: PLR2004
+        assert response.data["next"] is not None
+        assert response.data["previous"] is None
+
+        # Get second page
+        response = self.client.get(url, {"page": 2})
+        assert response.status_code == status.HTTP_200_OK
+        assert len(response.data["results"]) == 5  # noqa: PLR2004, Remaining stories
+        assert response.data["next"] is None
+        assert response.data["previous"] is not None
+
+    def test_similar_stories_from_multiple_users(self):
+        """Test that similar stories from different users are returned."""
+        user1 = InstagramUserFactory(username="user1")
+        user2 = InstagramUserFactory(username="user2")
+
+        # Create source story with embedding
+        source_story = StoryFactory(user=user1, embedding=[0.1, 0.2, 0.3] * 512)
+
+        # Create similar stories from different users
+        StoryFactory(user=user1, embedding=[0.1, 0.2, 0.3] * 512)
+        StoryFactory(user=user2, embedding=[0.1, 0.2, 0.3] * 512)
+
+        url = reverse(
+            "instagram:story_similar",
+            kwargs={"story_id": source_story.story_id},
+        )
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        results = response.data["results"]
+        assert len(results) == 2  # noqa: PLR2004
+
+        # Verify we have stories from both users
+        usernames = {story["user"]["username"] for story in results}
+        assert "user1" in usernames
+        assert "user2" in usernames

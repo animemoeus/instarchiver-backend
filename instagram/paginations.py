@@ -76,3 +76,14 @@ class PostSimilarPageNumberPagination(PageNumberPagination):
     page_size = 20
     page_size_query_param = "page_size"
     max_page_size = 100
+
+
+class StorySimilarPageNumberPagination(PageNumberPagination):
+    """
+    Page number pagination for similar stories.
+    Returns stories ordered by similarity score (descending).
+    """
+
+    page_size = 20
+    page_size_query_param = "page_size"
+    max_page_size = 100

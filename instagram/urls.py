@@ -11,6 +11,7 @@ from instagram.views import PostSimilarView
 from instagram.views import ProcessInstagramDataView
 from instagram.views import StoryDetailView
 from instagram.views import StoryListView
+from instagram.views import StorySimilarView
 
 app_name = "instagram"
 urlpatterns = [
@@ -23,6 +24,11 @@ urlpatterns = [
     ),
     path("stories/", StoryListView.as_view(), name="story_list"),
     path("stories/<str:story_id>/", StoryDetailView.as_view(), name="story_detail"),
+    path(
+        "stories/<str:story_id>/similar/",
+        StorySimilarView.as_view(),
+        name="story_similar",
+    ),
     path("posts/", PostListView.as_view(), name="post_list"),
     path("posts/ai-search/", PostAISearchView.as_view(), name="post_ai_search"),
     path("posts/<str:id>/", PostDetailView.as_view(), name="post_detail"),
