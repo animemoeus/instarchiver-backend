@@ -1,7 +1,9 @@
 import base64
 import logging
+from io import BytesIO
 
 from django.db import models
+from PIL import Image
 
 from core.utils.openai import get_openai_client
 from instagram.misc import get_user_story_upload_location
@@ -78,10 +80,31 @@ class Story(models.Model):
             raise ValueError(msg)
 
         try:
-            # Encode image to base64
+            # Load and optimize image to reduce token usage
             # Use .open() instead of .path for S3 compatibility
             with self.thumbnail.open("rb") as image_file:
-                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+                # Open image with PIL
+                image = Image.open(image_file)
+
+                # Resize to 50% to reduce token usage
+                # Calculate new dimensions (50% of original)
+                new_width = image.width // 2
+                new_height = image.height // 2
+
+                # Resize image
+                resized_image = image.resize(
+                    (new_width, new_height),
+                    Image.Resampling.LANCZOS,
+                )
+
+                # Convert to RGB if necessary (for JPEG compatibility)
+                if resized_image.mode in ("RGBA", "P", "LA"):
+                    resized_image = resized_image.convert("RGB")
+
+                # Compress and encode to base64
+                buffer = BytesIO()
+                resized_image.save(buffer, format="JPEG", quality=60, optimize=True)
+                base64_image = base64.b64encode(buffer.getvalue()).decode("utf-8")
 
             # Get OpenAI client and model
             client = get_openai_client()
