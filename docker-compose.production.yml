@@ -40,6 +40,8 @@ services:
     image: docker.io/redis:6
     volumes:
       - instarchiver_production_redis_data:/data
+    ports:
+      - 100.86.58.86:64202:6379
 
 
   celeryworker:
