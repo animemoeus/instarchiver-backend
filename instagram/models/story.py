@@ -3,6 +3,7 @@ import logging
 from io import BytesIO
 
 from django.db import models
+from pgvector.django import VectorField
 from PIL import Image
 
 from core.utils.openai import get_openai_client
@@ -29,6 +30,9 @@ class Story(models.Model):
         null=True,
     )
     raw_api_data = models.JSONField(blank=True, null=True)
+
+    embedding = VectorField(dimensions=1536, blank=True, null=True)
+    embedding_token_usage = models.IntegerField(default=0)
 
     created_at = models.DateTimeField(auto_now_add=True)
     story_created_at = models.DateTimeField()

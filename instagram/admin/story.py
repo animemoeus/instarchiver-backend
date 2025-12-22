@@ -30,6 +30,8 @@ class StoryAdmin(ModelAdmin):
         "blur_data_url",
         "thumbnail_insight",
         "thumbnail_insight_token_usage",
+        "embedding",
+        "embedding_token_usage",
     ]
     fieldsets = (
         (
@@ -42,6 +44,7 @@ class StoryAdmin(ModelAdmin):
                     "media",
                     "blur_data_url",
                     ("thumbnail_insight", "thumbnail_insight_token_usage"),
+                    ("embedding", "embedding_token_usage"),
                 ),
                 "classes": ["tab"],
             },
