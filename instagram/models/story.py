@@ -1,5 +1,9 @@
+import base64
+import logging
+
 from django.db import models
 
+from core.utils.openai import get_openai_client
 from instagram.misc import get_user_story_upload_location
 
 
@@ -15,6 +19,8 @@ class Story(models.Model):
         blank=True,
         null=True,
     )
+    thumbnail_insight = models.TextField(blank=True)
+    thumbnail_insight_token_usage = models.IntegerField(default=0)
     media = models.FileField(
         upload_to=get_user_story_upload_location,
         blank=True,
@@ -40,6 +46,92 @@ class Story(models.Model):
         from instagram.tasks import story_generate_blur_data_url  # noqa: PLC0415
 
         story_generate_blur_data_url.delay(self.story_id)
+
+    def generate_thumbnail_insight_task(self):
+        """
+        Generates AI-powered thumbnail insight using a Celery task.
+        This method queues the thumbnail insight generation as a background task.
+        """
+        from instagram.tasks import generate_story_thumbnail_insight  # noqa: PLC0415
+
+        generate_story_thumbnail_insight.delay(self.story_id)
+
+    def generate_thumbnail_insight(self):
+        """
+        Generate AI-powered insight for the story thumbnail using OpenAI Vision API.
+
+        This method encodes the thumbnail image and sends it to OpenAI's GPT-4 Vision
+        model to generate a descriptive insight about the story content.
+
+        Returns:
+            str: Generated insight text, or empty string if generation fails
+
+        Raises:
+            ValueError: If thumbnail file doesn't exist
+            ImproperlyConfigured: If OpenAI settings are not configured
+        """
+        logger = logging.getLogger(__name__)
+
+        # Check if thumbnail exists
+        if not self.thumbnail:
+            msg = f"Thumbnail file does not exist for story {self.story_id}"
+            raise ValueError(msg)
+
+        try:
+            # Encode image to base64
+            # Use .open() instead of .path for S3 compatibility
+            with self.thumbnail.open("rb") as image_file:
+                base64_image = base64.b64encode(image_file.read()).decode("utf-8")
+
+            # Get OpenAI client and model
+            client = get_openai_client()
+            model_name = "gpt-5-mini"
+
+            # Create chat completion with vision
+            prompt_text = (
+                "Analyze this image and create detailed description about the image."
+                "The description should be detail as possible for text embedding data."
+            )
+            response = client.chat.completions.create(
+                model=model_name,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": prompt_text,
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": f"data:image/jpeg;base64,{base64_image}",
+                                },
+                            },
+                        ],
+                    },
+                ],
+            )
+
+            # Extract and save the insight
+            insight = response.choices[0].message.content.strip()
+            self.thumbnail_insight = insight
+            self.thumbnail_insight_token_usage = response.usage.total_tokens
+            self.save(
+                update_fields=["thumbnail_insight", "thumbnail_insight_token_usage"],
+            )
+
+        except FileNotFoundError:
+            logger.exception("Thumbnail file not found for story %s", self.story_id)
+            raise
+        except Exception:
+            logger.exception(
+                "Failed to generate thumbnail insight for story %s",
+                self.story_id,
+            )
+            return ""
+        else:
+            logger.info("Generated thumbnail insight for story %s", self.story_id)
 
 
 class UserUpdateStoryLog(models.Model):

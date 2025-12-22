@@ -172,3 +172,108 @@ def auto_generate_story_blur_data_urls():
     except Exception as e:
         logger.exception("Critical error in auto_generate_story_blur_data_urls")
         return {"success": False, "error": f"Critical error: {e!s}"}
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=60)
+def generate_story_thumbnail_insight(self, story_id: str) -> dict:
+    """
+    Generate AI-powered insight for a story thumbnail using OpenAI Vision API.
+    This is a background task that calls the Story model's
+    generate_thumbnail_insight method.
+
+    Args:
+        story_id (str): ID of the story to generate insight for
+
+    Returns:
+        dict: Operation result with success status and details
+    """
+    try:
+        story = Story.objects.get(story_id=story_id)
+    except Story.DoesNotExist:
+        logger.exception("Story with ID %s not found", story_id)
+        return {"success": False, "error": "Story not found"}
+
+    # Check if thumbnail exists
+    if not story.thumbnail:
+        logger.warning(
+            "No thumbnail file for story %s, cannot generate insight",
+            story_id,
+        )
+        return {"success": False, "error": "No thumbnail file"}
+
+    # Check if insight already exists
+    if story.thumbnail_insight:
+        logger.info("Thumbnail insight already exists for story %s", story_id)
+        return {"success": True, "message": "Insight already exists"}
+
+    try:
+        # Generate the insight
+        story.generate_thumbnail_insight()
+
+        logger.info(
+            "Successfully generated thumbnail insight for story %s (tokens: %s)",
+            story_id,
+            story.thumbnail_insight_token_usage,
+        )
+
+        return {  # noqa: TRY300
+            "success": True,
+            "message": "Successfully generated thumbnail insight",
+            "story_id": story_id,
+            "token_usage": story.thumbnail_insight_token_usage,
+        }
+
+    except ValueError as e:
+        # Non-retryable error (e.g., thumbnail doesn't exist)
+        logger.exception(
+            "ValueError generating thumbnail insight for story %s",
+            story_id,
+        )
+        return {"success": False, "error": f"ValueError: {e!s}"}
+
+    except Exception as e:
+        error_msg = str(e)
+
+        # Determine if this is a retryable error
+        retryable_keywords = [
+            "network",
+            "timeout",
+            "connection",
+            "502",
+            "503",
+            "504",
+            "temporary",
+            "rate limit",
+            "api error",
+            "openai",
+        ]
+        is_retryable = any(
+            keyword in error_msg.lower() for keyword in retryable_keywords
+        )
+
+        if is_retryable and self.request.retries < self.max_retries:
+            logger.warning(
+                "Retryable error generating thumbnail insight for story %s "
+                "(attempt %s/%s): %s",
+                story_id,
+                self.request.retries + 1,
+                self.max_retries + 1,
+                error_msg,
+            )
+            # Exponential backoff
+            countdown = 60 * (2**self.request.retries)
+            raise self.retry(exc=e, countdown=countdown) from e
+
+        # Non-retryable error or max retries exceeded
+        logger.exception(
+            "Failed to generate thumbnail insight for story %s after %s attempts",
+            story_id,
+            self.request.retries + 1,
+        )
+
+        return {
+            "success": False,
+            "error": error_msg,
+            "story_id": story_id,
+            "attempts": self.request.retries + 1,
+        }
