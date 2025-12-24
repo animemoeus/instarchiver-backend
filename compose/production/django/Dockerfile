@@ -21,6 +21,11 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 # Requirements are installed here to ensure they will be cached.
 COPY ./requirements .
 
+# Configure pip for better performance and reliability
+RUN pip config set global.index-url https://pypi.python.org/simple && \
+  pip config set global.timeout 100 && \
+  pip config set global.retries 5
+
 # Create Python Dependency and Sub-Dependency Wheels.
 RUN pip wheel --wheel-dir /usr/src/app/wheels \
   -r ${BUILD_ENVIRONMENT}.txt
