@@ -7,9 +7,6 @@ FROM python AS python-build-stage
 
 ARG BUILD_ENVIRONMENT=production
 
-# Use faster Debian mirror (CDN)
-RUN sed -i 's/deb.debian.org/cloudfront.debian.net/g' /etc/apt/sources.list.d/debian.sources
-
 # Install apt packages
 RUN apt-get update && apt-get install --no-install-recommends -y \
   # dependencies for building Python packages
@@ -41,8 +38,6 @@ WORKDIR ${APP_HOME}
 RUN addgroup --system django \
   && adduser --system --ingroup django django
 
-# Use faster Debian mirror (CDN)
-RUN sed -i 's/deb.debian.org/cloudfront.debian.net/g' /etc/apt/sources.list.d/debian.sources
 
 # Install required system dependencies
 RUN apt-get update && apt-get install --no-install-recommends -y \
