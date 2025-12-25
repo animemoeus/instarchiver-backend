@@ -48,8 +48,13 @@ CACHES = {
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-proxy-ssl-header
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 # https://docs.djangoproject.com/en/dev/ref/settings/#use-x-forwarded-host
-# Required for Cloudflare Flexible SSL to generate correct pagination URLs
+# Required for correct pagination URLs when behind reverse proxies
+# Proxy chain: Cloudflare (Flexible SSL) → Nginx Proxy Manager → Nginx → Django
+# This setting ensures DRF uses the X-Forwarded-Host header for building URLs
 USE_X_FORWARDED_HOST = True
+# https://docs.djangoproject.com/en/dev/ref/settings/#use-x-forwarded-port
+# Ensures Django uses the correct port from X-Forwarded-Port header
+USE_X_FORWARDED_PORT = True
 # https://docs.djangoproject.com/en/dev/ref/settings/#secure-ssl-redirect
 SECURE_SSL_REDIRECT = env.bool("DJANGO_SECURE_SSL_REDIRECT", default=True)
 # https://docs.djangoproject.com/en/dev/ref/settings/#session-cookie-secure
