@@ -5,6 +5,7 @@ from io import BytesIO
 import requests
 from celery import shared_task
 from django.core.files.base import ContentFile
+from django.db.models import F
 from PIL import Image
 
 from instagram.models import Post
@@ -12,6 +13,16 @@ from instagram.models import PostMedia
 from instagram.utils import generate_blur_data_url_from_image_url
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def increment_post_view_count(self, post_id: str) -> None:
+    """Atomically increment a post's view_count by 1.
+
+    Uses .update() instead of .save() so this never triggers the post_save
+    signal (avoiding noisy simple_history snapshot rows on every view).
+    """
+    Post.objects.filter(id=post_id).update(view_count=F("view_count") + 1)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

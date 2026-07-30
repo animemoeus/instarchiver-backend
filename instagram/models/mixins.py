@@ -19,3 +19,19 @@ class InstagramModerationMixin(models.Model):
     def moderate_content(self):
         msg = "Subclasses must implement the moderate_content method."
         raise NotImplementedError(msg)
+
+
+class ViewCountMixin(models.Model):
+    """
+    Mixin to add a per-object view counter.
+
+    Internal analytics only, never exposed via API serializers. Must only be
+    incremented via a queryset .update() call (e.g. from a Celery task), never
+    via instance.save(), to avoid triggering post_save signals such as
+    django-simple-history's change tracking on every view.
+    """
+
+    view_count = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        abstract = True

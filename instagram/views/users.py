@@ -15,6 +15,8 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from core.utils.view_tracking import get_client_ip
+from core.utils.view_tracking import should_count_view
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import InstagramUserCursorPagination
@@ -24,6 +26,7 @@ from instagram.serializers.users import InstagramUserCreateSerializer
 from instagram.serializers.users import InstagramUserDetailSerializer
 from instagram.serializers.users import InstagramUserHistoryListSerializer
 from instagram.serializers.users import InstagramUserListSerializer
+from instagram.tasks.user import increment_user_view_count
 from payments.utils import stripe_create_instagram_user_story_credits_payment
 
 
@@ -119,6 +122,13 @@ class InstagramUserDetailView(RetrieveAPIView):
                 ),
             )
         )
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        user_uuid = kwargs.get(self.lookup_field)
+        if should_count_view("user", user_uuid, get_client_ip(request)):
+            increment_user_view_count.delay(str(user_uuid))
+        return response
 
 
 class InstagramUserHistoryView(ListAPIView):

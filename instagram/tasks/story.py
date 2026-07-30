@@ -1,11 +1,18 @@
 import logging
 
 from celery import shared_task
+from django.db.models import F
 
 from instagram.models import Story
 from instagram.utils import generate_blur_data_url_from_image_url
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+def increment_story_view_count(self, story_id: str) -> None:
+    """Atomically increment a story's view_count by 1 via a queryset update."""
+    Story.objects.filter(story_id=story_id).update(view_count=F("view_count") + 1)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

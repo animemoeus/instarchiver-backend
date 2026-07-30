@@ -12,6 +12,7 @@ from PIL import Image
 from instagram.models import Story
 from instagram.tasks import auto_generate_story_blur_data_urls
 from instagram.tasks import generate_story_embedding
+from instagram.tasks import increment_story_view_count
 from instagram.tasks import moderate_story_content
 from instagram.tasks import periodic_generate_story_embeddings
 from instagram.tasks import periodic_moderate_story_content
@@ -333,3 +334,17 @@ class TestPeriodicModerateStoryContent(TestCase):
         assert isinstance(result, EagerResult)
         assert result.result["success"] is False
         assert "Critical error" in result.result["error"]
+
+
+class TestIncrementStoryViewCount(TestCase):
+    def test_increments_view_count(self):
+        story = StoryFactory()
+        assert story.view_count == 0
+
+        increment_story_view_count(story.story_id)
+
+        story.refresh_from_db()
+        assert story.view_count == 1
+
+    def test_missing_story_is_a_no_op(self):
+        increment_story_view_count("does-not-exist")

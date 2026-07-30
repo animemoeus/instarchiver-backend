@@ -9,11 +9,12 @@ from core.utils.openai import moderate_image_content
 from core.utils.openrouter import generate_image_embedding
 from instagram.misc import get_user_story_upload_location
 from instagram.models.mixins import InstagramModerationMixin
+from instagram.models.mixins import ViewCountMixin
 
 logger = logging.getLogger(__name__)
 
 
-class Story(InstagramModerationMixin):
+class Story(InstagramModerationMixin, ViewCountMixin):
     story_id = models.CharField(unique=True, max_length=50, primary_key=True)
     user = models.ForeignKey("instagram.User", on_delete=models.CASCADE)
     thumbnail_url = models.URLField(max_length=2500, blank=True)
