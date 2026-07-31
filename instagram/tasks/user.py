@@ -11,7 +11,7 @@ from instagram.models import User
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+@shared_task(bind=True, max_retries=3, default_retry_delay=10, ignore_result=True)
 def increment_user_view_count(self, user_id) -> None:
     """Atomically increment a user's view_count by 1.
 
