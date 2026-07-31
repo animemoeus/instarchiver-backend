@@ -70,7 +70,7 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to production server
+      - name: Pull latest source
         uses: appleboy/ssh-action@master
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -82,8 +82,68 @@ jobs:
           script: |
             cd ${{ secrets.REPOSITORY_LOCATION }}
             git pull origin master --force
+
+      - name: Pull latest images
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          command_timeout: 1337m
+          script_stop: true
+          script: |
+            cd ${{ secrets.REPOSITORY_LOCATION }}
             docker compose -f docker-compose.ghcr.yml pull
+
+      - name: Start containers
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          command_timeout: 1337m
+          script_stop: true
+          script: |
+            cd ${{ secrets.REPOSITORY_LOCATION }}
             docker compose -f docker-compose.ghcr.yml up -d
+
+      - name: Run migrations
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          command_timeout: 1337m
+          script_stop: true
+          script: |
+            cd ${{ secrets.REPOSITORY_LOCATION }}
             docker compose -f docker-compose.ghcr.yml run --rm django python manage.py migrate
+
+      - name: Collect static files
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          command_timeout: 1337m
+          script_stop: true
+          script: |
+            cd ${{ secrets.REPOSITORY_LOCATION }}
             docker compose -f docker-compose.ghcr.yml run --rm collectstatic
+
+      - name: Prune old images
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USERNAME }}
+          password: ${{ secrets.SSH_PASSWORD }}
+          port: 22
+          command_timeout: 1337m
+          script_stop: true
+          script: |
+            cd ${{ secrets.REPOSITORY_LOCATION }}
             docker image prune -a --force
