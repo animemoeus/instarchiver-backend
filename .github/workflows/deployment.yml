@@ -85,4 +85,5 @@ jobs:
             docker compose -f docker-compose.ghcr.yml pull
             docker compose -f docker-compose.ghcr.yml up -d
             docker compose -f docker-compose.ghcr.yml run --rm django python manage.py migrate
+            docker compose -f docker-compose.ghcr.yml run --rm collectstatic
             docker image prune -a --force
