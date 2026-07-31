@@ -34,7 +34,6 @@ services:
 
   pgbouncer:
     image: edoburu/pgbouncer:latest
-    container_name: instarchiver_production_pgbouncer
     restart: unless-stopped
     env_file:
       - ./.envs/.production/.postgres
