@@ -15,7 +15,7 @@ from instagram.utils import generate_blur_data_url_from_image_url
 logger = logging.getLogger(__name__)
 
 
-@shared_task(bind=True, max_retries=3, default_retry_delay=10)
+@shared_task(bind=True, max_retries=3, default_retry_delay=10, ignore_result=True)
 def increment_post_view_count(self, post_id: str) -> None:
     """Atomically increment a post's view_count by 1.
 
