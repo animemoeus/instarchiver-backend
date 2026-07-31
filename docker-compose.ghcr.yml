@@ -10,7 +10,7 @@ services:
   django: &django
     image: ghcr.io/instarchiver/instarchiver-backend/django:latest
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 1024m
     volumes:
       - instarchiver_production_django_media:/app/core/media
     depends_on:
