@@ -31,7 +31,7 @@ class ViewCountMixin(models.Model):
     django-simple-history's change tracking on every view.
     """
 
-    view_count = models.PositiveIntegerField(default=0)
+    view_count = models.PositiveBigIntegerField(default=0)
 
     class Meta:
         abstract = True
