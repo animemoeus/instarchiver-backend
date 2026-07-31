@@ -31,6 +31,7 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
         "is_verified",
         "follower_count",
         "media_count",
+        "view_count",
         "created_at",
         "api_updated_at",
     ]
@@ -56,6 +57,7 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
         "updated_at",
         "api_updated_at",
         "raw_api_data",
+        "view_count",
     ]
     fieldsets = (
         (
@@ -84,6 +86,7 @@ class InstagramUserAdmin(SimpleHistoryAdmin, ModelAdmin):
                     "updated_at",
                     "api_updated_at",
                     "raw_api_data",
+                    "view_count",
                 ),
                 "classes": ["tab"],
             },

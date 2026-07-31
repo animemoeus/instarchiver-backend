@@ -1,5 +1,7 @@
 import uuid
+from unittest.mock import patch
 
+from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -349,6 +351,7 @@ class InstagramUserDetailViewTest(TestCase):
 
     def setUp(self):
         """Set up test client and common test data."""
+        cache.clear()
         self.client = APIClient()
 
     def test_retrieve_user_success(self):
@@ -509,6 +512,59 @@ class InstagramUserDetailViewTest(TestCase):
         assert "updated_at_from_api" in response.data
         assert "api_updated_at" not in response.data
         assert response.data["updated_at_from_api"] is not None
+
+    def test_view_count_not_in_response(self):
+        """Test that view_count is never exposed via the API."""
+        user = InstagramUserFactory(username="viewcountuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "view_count" not in response.data
+
+    @patch("instagram.views.users.increment_user_view_count.delay")
+    def test_first_view_triggers_increment_task(self, mock_delay):
+        cache.clear()
+        user = InstagramUserFactory(username="viewcountuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(str(user.uuid))
+
+    @patch("instagram.views.users.increment_user_view_count.delay")
+    def test_repeat_view_same_ip_does_not_trigger_again(self, mock_delay):
+        cache.clear()
+        user = InstagramUserFactory(username="viewcountuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        self.client.get(url)
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(str(user.uuid))
+
+    @patch("instagram.views.users.increment_user_view_count.delay")
+    def test_view_from_different_ip_triggers_again(self, mock_delay):
+        cache.clear()
+        user = InstagramUserFactory(username="viewcountuser")
+
+        url = reverse("instagram:user_detail", kwargs={"uuid": user.uuid})
+        self.client.get(url, REMOTE_ADDR="1.1.1.1")
+        self.client.get(url, REMOTE_ADDR="2.2.2.2")
+
+        expected_call_count = 2
+        assert mock_delay.call_count == expected_call_count
+
+    @patch("instagram.views.users.increment_user_view_count.delay")
+    def test_404_does_not_trigger_increment(self, mock_delay):
+        cache.clear()
+        url = reverse("instagram:user_detail", kwargs={"uuid": uuid.uuid4()})
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        mock_delay.assert_not_called()
 
 
 class InstagramUserHistoryViewTest(TestCase):

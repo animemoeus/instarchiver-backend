@@ -29,7 +29,7 @@ class InstagramUserListSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser
-        exclude = ["original_profile_picture_url", "raw_api_data"]
+        exclude = ["original_profile_picture_url", "raw_api_data", "view_count"]
 
 
 class InstagramUserDetailSerializer(ModelSerializer):
@@ -44,7 +44,7 @@ class InstagramUserDetailSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser
-        exclude = ["raw_api_data"]
+        exclude = ["raw_api_data", "view_count"]
         extra_kwargs = {
             "api_updated_at": {"write_only": True},
         }
@@ -69,7 +69,12 @@ class InstagramUserHistoryListSerializer(ModelSerializer):
 
     class Meta:
         model = InstagramUser.history.model
-        exclude = ["original_profile_picture_url", "raw_api_data", "history_user"]
+        exclude = [
+            "original_profile_picture_url",
+            "raw_api_data",
+            "history_user",
+            "view_count",
+        ]
 
     def get_profile_picture(self, obj):
         """Return the full URL for the profile picture if it exists.

@@ -10,6 +10,7 @@ from sentry_sdk.integrations.redis import RedisIntegration
 from .base import *  # noqa: F403
 from .base import DATABASES
 from .base import INSTALLED_APPS
+from .base import MIDDLEWARE
 from .base import REDIS_URL
 from .base import SPECTACULAR_SETTINGS
 from .base import env
@@ -97,25 +98,43 @@ AWS_S3_SIGNATURE_VERSION = "s3v4"
 
 # STATIC & MEDIA
 # ------------------------
+AWS_S3_CONFIGURED = all(
+    (
+        AWS_STORAGE_BUCKET_NAME,
+        AWS_S3_ENDPOINT_URL,
+        AWS_S3_ACCESS_KEY_ID,
+        AWS_S3_SECRET_ACCESS_KEY,
+    ),
+)
+
 STORAGES = {
     "default": {
         "BACKEND": (
             "storages.backends.s3boto3.S3Boto3Storage"
-            if all(
-                (
-                    AWS_STORAGE_BUCKET_NAME,
-                    AWS_S3_ENDPOINT_URL,
-                    AWS_S3_ACCESS_KEY_ID,
-                    AWS_S3_SECRET_ACCESS_KEY,
-                ),
-            )
+            if AWS_S3_CONFIGURED
             else "django.core.files.storage.FileSystemStorage"
         ),
     },
-    "staticfiles": {
-        "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
-    },
+    "staticfiles": (
+        {
+            "BACKEND": "storages.backends.s3boto3.S3ManifestStaticStorage",
+            "OPTIONS": {
+                "location": "static",
+            },
+        }
+        if AWS_S3_CONFIGURED
+        else {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        }
+    ),
 }
+
+if AWS_S3_CONFIGURED:
+    # Static files are served directly from S3/R2, so Whitenoise's middleware
+    # never gets hit and is just dead weight in the request path.
+    MIDDLEWARE = [
+        m for m in MIDDLEWARE if m != "whitenoise.middleware.WhiteNoiseMiddleware"
+    ]
 
 # EMAIL
 # ------------------------------------------------------------------------------

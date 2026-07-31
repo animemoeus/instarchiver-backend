@@ -11,6 +11,7 @@ class StoryAdmin(ModelAdmin):
         "story_id",
         "is_flagged",
         "user",
+        "view_count",
         "created_at",
         "story_created_at",
     ]
@@ -33,6 +34,7 @@ class StoryAdmin(ModelAdmin):
         "blur_data_url",
         "embedding_token_usage",
         "moderation_result",
+        "view_count",
     ]
     fieldsets = (
         (
@@ -55,6 +57,7 @@ class StoryAdmin(ModelAdmin):
                 "fields": (
                     "created_at",
                     "raw_api_data",
+                    "view_count",
                 ),
                 "classes": ["tab"],
             },
