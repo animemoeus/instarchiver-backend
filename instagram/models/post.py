@@ -9,10 +9,11 @@ from core.utils.openai import moderate_image_content
 from core.utils.openrouter import generate_image_embedding
 from instagram.misc import get_post_media_upload_location
 from instagram.models.mixins import InstagramModerationMixin
+from instagram.models.mixins import ViewCountMixin
 from instagram.models.user import User
 
 
-class Post(InstagramModerationMixin):
+class Post(InstagramModerationMixin, ViewCountMixin):
     POST_VARIANT_NORMAL = "normal"
     POST_VARIANT_CAROUSEL = "carousel"
     POST_VARIANT_VIDEO = "video"

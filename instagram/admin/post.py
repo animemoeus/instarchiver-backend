@@ -36,6 +36,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "user",
         "variant",
         "is_flagged",
+        "view_count",
         "created_at",
         "updated_at",
     ]
@@ -65,6 +66,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
         "embedding_token_usage",
         "caption",
         "moderation_result",
+        "view_count",
     ]
     fieldsets = (
         (
@@ -88,6 +90,7 @@ class PostAdmin(SimpleHistoryAdmin, ModelAdmin):
                 "fields": (
                     ("created_at", "updated_at"),
                     "raw_data",
+                    "view_count",
                 ),
                 "classes": ["tab"],
             },

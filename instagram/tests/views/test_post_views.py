@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core.cache import cache
 from django.test import TestCase
 from django.urls import reverse
@@ -586,6 +588,7 @@ class PostDetailViewTest(TestCase):
 
     def setUp(self):
         """Set up test client and common test data."""
+        cache.clear()
         self.client = APIClient()
 
     def test_retrieve_post_success(self):
@@ -982,6 +985,60 @@ class PostDetailViewTest(TestCase):
         assert cached_data["caption"] == "Test caption for caching"
         assert cached_data["user"]["username"] == "cachedatauser"
         assert len(cached_data["media"]) == 2  # noqa: PLR2004
+
+    def test_view_count_not_in_response(self):
+        """Test that view_count is never exposed via the API."""
+        post = PostFactory()
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "view_count" not in response.data
+
+    @patch("instagram.views.posts.increment_post_view_count.delay")
+    def test_first_view_triggers_increment_task(self, mock_delay):
+        post = PostFactory()
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(post.id)
+
+    @patch("instagram.views.posts.increment_post_view_count.delay")
+    def test_repeat_view_same_ip_does_not_trigger_again(self, mock_delay):
+        post = PostFactory()
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        self.client.get(url)
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(post.id)
+
+    @patch("instagram.views.posts.increment_post_view_count.delay")
+    def test_view_from_different_ip_triggers_again_on_cache_hit(self, mock_delay):
+        """Even though the second request is served from the 30s response
+        cache, view tracking must still fire for a new IP."""
+        post = PostFactory()
+
+        url = reverse("instagram:post_detail", kwargs={"id": post.id})
+        self.client.get(url, REMOTE_ADDR="1.1.1.1")
+        self.client.get(url, REMOTE_ADDR="2.2.2.2")
+
+        expected_call_count = 2
+        assert mock_delay.call_count == expected_call_count
+
+    @patch("instagram.views.posts.increment_post_view_count.delay")
+    def test_404_does_not_trigger_increment(self, mock_delay):
+        url = reverse(
+            "instagram:post_detail",
+            kwargs={"id": "9999999999999999999"},
+        )
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        mock_delay.assert_not_called()
 
 
 class PostSimilarViewTest(TestCase):

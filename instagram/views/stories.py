@@ -15,12 +15,15 @@ from rest_framework.generics import RetrieveAPIView
 from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
+from core.utils.view_tracking import get_client_ip
+from core.utils.view_tracking import should_count_view
 from instagram.models import Story
 from instagram.models import User as InstagramUser
 from instagram.paginations import StoryCursorPagination
 from instagram.paginations import StorySimilarPageNumberPagination
 from instagram.serializers.stories import StoryDetailSerializer
 from instagram.serializers.stories import StoryListSerializer
+from instagram.tasks.story import increment_story_view_count
 
 
 class StoryListView(ListAPIView):
@@ -96,6 +99,13 @@ class StoryDetailView(RetrieveAPIView):
         return Story.objects.all().prefetch_related(
             Prefetch("user", queryset=annotated_users),
         )
+
+    def retrieve(self, request, *args, **kwargs):
+        response = super().retrieve(request, *args, **kwargs)
+        story_id = kwargs.get(self.lookup_field)
+        if should_count_view("story", story_id, get_client_ip(request)):
+            increment_story_view_count.delay(story_id)
+        return response
 
 
 class StorySimilarView(ListAPIView):

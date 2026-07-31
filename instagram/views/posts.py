@@ -14,6 +14,8 @@ from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
 
 from core.utils.openai import generate_text_embedding
+from core.utils.view_tracking import get_client_ip
+from core.utils.view_tracking import should_count_view
 from instagram.models import Post
 from instagram.models import PostMedia
 from instagram.models import Story
@@ -23,6 +25,7 @@ from instagram.paginations import PostCursorPagination
 from instagram.paginations import PostSimilarPageNumberPagination
 from instagram.serializers.posts import PostDetailSerializer
 from instagram.serializers.posts import PostListSerializer
+from instagram.tasks.post import increment_post_view_count
 
 
 class PostListView(ListAPIView):
@@ -95,6 +98,8 @@ class PostDetailView(RetrieveAPIView):
         # Try to get cached response
         cached_response = cache.get(cache_key)
         if cached_response is not None:
+            if should_count_view("post", post_id, get_client_ip(request)):
+                increment_post_view_count.delay(post_id)
             return Response(cached_response)
 
         # Get the post instance
@@ -104,6 +109,9 @@ class PostDetailView(RetrieveAPIView):
 
         # Cache the response for 30 seconds
         cache.set(cache_key, data, 30)
+
+        if should_count_view("post", post_id, get_client_ip(request)):
+            increment_post_view_count.delay(post_id)
 
         return Response(data)
 

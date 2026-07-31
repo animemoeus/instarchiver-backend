@@ -1,5 +1,6 @@
 import hashlib
 import json
+from unittest.mock import patch
 
 from django.core.cache import cache
 from django.test import TestCase
@@ -563,6 +564,7 @@ class StoryDetailViewTest(TestCase):
 
     def setUp(self):
         """Set up test client and common test data."""
+        cache.clear()
         self.client = APIClient()
 
     def test_retrieve_story_success(self):
@@ -735,6 +737,58 @@ class StoryDetailViewTest(TestCase):
 
         assert response.status_code == status.HTTP_200_OK
         assert response.data["user"]["uuid"] == str(user.uuid)
+
+    def test_view_count_not_in_response(self):
+        """Test that view_count is never exposed via the API."""
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_200_OK
+        assert "view_count" not in response.data
+
+    @patch("instagram.views.stories.increment_story_view_count.delay")
+    def test_first_view_triggers_increment_task(self, mock_delay):
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(story.story_id)
+
+    @patch("instagram.views.stories.increment_story_view_count.delay")
+    def test_repeat_view_same_ip_does_not_trigger_again(self, mock_delay):
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        self.client.get(url)
+        self.client.get(url)
+
+        mock_delay.assert_called_once_with(story.story_id)
+
+    @patch("instagram.views.stories.increment_story_view_count.delay")
+    def test_view_from_different_ip_triggers_again(self, mock_delay):
+        story = StoryFactory()
+
+        url = reverse("instagram:story_detail", kwargs={"story_id": story.story_id})
+        self.client.get(url, REMOTE_ADDR="1.1.1.1")
+        self.client.get(url, REMOTE_ADDR="2.2.2.2")
+
+        expected_call_count = 2
+        assert mock_delay.call_count == expected_call_count
+
+    @patch("instagram.views.stories.increment_story_view_count.delay")
+    def test_404_does_not_trigger_increment(self, mock_delay):
+        url = reverse(
+            "instagram:story_detail",
+            kwargs={"story_id": "9999999999999999999"},
+        )
+
+        response = self.client.get(url)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+        mock_delay.assert_not_called()
 
 
 class StorySimilarViewTest(TestCase):

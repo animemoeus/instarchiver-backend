@@ -4,10 +4,21 @@ import logging
 import requests
 from celery import shared_task
 from django.core.files.base import ContentFile
+from django.db.models import F
 
 from instagram.models import User
 
 logger = logging.getLogger(__name__)
+
+
+@shared_task(bind=True, max_retries=3, default_retry_delay=10, ignore_result=True)
+def increment_user_view_count(self, user_id) -> None:
+    """Atomically increment a user's view_count by 1.
+
+    Uses .update() instead of .save() so this never triggers the post_save
+    signal (avoiding noisy simple_history snapshot rows on every view).
+    """
+    User.objects.filter(uuid=user_id).update(view_count=F("view_count") + 1)
 
 
 @shared_task(bind=True, max_retries=3, default_retry_delay=60)

@@ -12,6 +12,7 @@ from instagram.tasks import auto_update_user_profile
 from instagram.tasks import auto_update_user_story
 from instagram.tasks import auto_update_users_profile
 from instagram.tasks import auto_update_users_story
+from instagram.tasks import increment_user_view_count
 from instagram.tasks import update_profile_picture_from_url
 from instagram.tasks import update_user_posts_from_api
 from instagram.tasks import update_user_stories_from_api
@@ -668,3 +669,27 @@ class TestAutoUpdateUserStory(TestCase):
         assert isinstance(result, EagerResult)
         assert result.result["success"] is False
         assert "error" in result.result
+
+
+class TestIncrementUserViewCount(TestCase):
+    def test_increments_view_count(self):
+        user = InstagramUserFactory()
+        assert user.view_count == 0
+
+        increment_user_view_count(user.uuid)
+
+        user.refresh_from_db()
+        assert user.view_count == 1
+
+    def test_does_not_create_historical_record(self):
+        """Incrementing view_count must use .update(), not .save(), to avoid
+        triggering simple_history's post_save signal on every view."""
+        user = InstagramUserFactory()
+        history_count_before = user.history.count()
+
+        increment_user_view_count(user.uuid)
+
+        assert user.history.count() == history_count_before
+
+    def test_missing_user_is_a_no_op(self):
+        increment_user_view_count("00000000-0000-0000-0000-000000000000")
