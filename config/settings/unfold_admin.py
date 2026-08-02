@@ -11,9 +11,6 @@ UNFOLD = {
     "SITE_URL": "/",
     "SHOW_HISTORY": True,
     "SHOW_VIEW_ON_SITE": True,
-    "STYLES": [
-        lambda request: "css/admin-custom.css",
-    ],
     "SCRIPTS": [],
     "COLORS": {
         "primary": {
