@@ -87,6 +87,8 @@ services:
 
   collectstatic:
     <<: *django
+    restart: "no"
+    profiles: ["cli"]
     command: python manage.py collectstatic --noinput
 
   awscli:
